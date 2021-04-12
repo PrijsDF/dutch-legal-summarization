@@ -1,0 +1,7 @@
+Export starttijdstip:11-01-2019 12-53
+Export wordt opgevraagd voor periode van:01-12-1900 00-00 tot en met 31-12-2018 23-59
+Hieronder staan de resultaten van de export wanneer deze succesvol is verlopen. Als hieronder niets vermeld staat dan is er een probleem ontstaan tijdens de export.
+Export 2580352 bestanden zijn aangevuld of ververst
+Export einde tijdstip:11-01-2019 15-06
+Export duur:02:13:07.3003449
+Export is succesvol verlopen
