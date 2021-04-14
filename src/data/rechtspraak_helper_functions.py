@@ -4,7 +4,7 @@ from datetime import datetime
 
 def parse_xml(file_name):
     # Passing the stored data inside the beautifulsoup parser
-    file_xml = BeautifulSoup(file_name, "xml")  # (data, "xml")
+    file_xml = BeautifulSoup(file_name, 'xml')
 
     # Find the RDF info, case summary and case description
     case_rdf = file_xml.find('rdf:RDF')
@@ -23,7 +23,7 @@ def get_document_attributes(case_rdf):
 
     # Tag pointer dictionary for single tag items
     # Cardinalities are taken from chapter 12 of the pdf:
-    # Technische-documentatie-Open-Data-van-de-Rechtspraak.pdf
+    # ./references/Rechtspraak data information/Technische-documentatie-Open-Data-van-de-Rechtspraak.pdf
     # Cardinality: 0/1 - 1
     tag_pointer_dict = {
         'identifier': 'dcterms:identifier',  # 1 - 1
@@ -61,10 +61,7 @@ def get_document_attributes(case_rdf):
         try:
             rdf_tags[tag] = case_rdf.find(pointer).text
         except:
-            # print("There was an error when trying to find '{}' for case {}".format(
-            #    tag, file_name
-            # ))
-            rdf_tags[tag] = 'NOT_FOUND'
+            rdf_tags[tag] = 'none'
 
     # Lets do the multi tags
     for tag, pointer in multi_tag_pointer_dict.items():
@@ -75,16 +72,12 @@ def get_document_attributes(case_rdf):
             rdf_tags[tag] += (mention.text,)
 
     # Date tags (%Y-%m-%d)
-    # Atm krijgen deze nog 'object' als dtype; fix iets
     for tag, pointer in date_tag_pointer_dict.items():
         try:
             tag_text = case_rdf.find(pointer).text
             rdf_tags[tag] = datetime.strptime(tag_text, '%Y-%m-%d').date()
         except:
-            # print("There was an error when trying to find '{}' for case {}".format(
-            #    tag, file_name
-            # ))
-            rdf_tags[tag] = 'NOT_FOUND'
+            rdf_tags[tag] = 'none'
 
     # Datetime tags (%Y-%m-%dT%H:%M:%S)
     for tag, pointer in datetime_tag_pointer_dict.items():
@@ -92,9 +85,6 @@ def get_document_attributes(case_rdf):
             tag_text = case_rdf.find(pointer).text
             rdf_tags[tag] = datetime.strptime(tag_text, '%Y-%m-%dT%H:%M:%S')
         except:
-            # print("There was an error when trying to find '{}' for case {}".format(
-            #    tag, file_name
-            # ))
-            rdf_tags[tag] = 'NOT_FOUND'
+            rdf_tags[tag] = 'none'
 
     return rdf_tags
