@@ -8,12 +8,17 @@ from tqdm import tqdm
 
 from src.utils import DATA_DIR, LOG_DIR
 from rechtspraak_parse_xml_functions import parse_xml
+from rechtspraak_compare_formats import compare_formats
 
 
-def main():
+def main(make_final_dataset=False, make_format_comparison=True):
     """ Runs data processing scripts to turn external data from (../external) into
         a raw dataset (saved in ../raw) that can be used as a starting point for creating the
         final dataset.
+
+        If make_final_dataset is true, then, at the end of the generating process, all month archive data files will be
+        combined into number_of_chunks chunks. Use make_format_comparison to compare four file formats for storing the
+        data.
     """
     # Start logging
     print('Making raw dataset from external Rechtspraak data...')
@@ -25,7 +30,10 @@ def main():
     # Specify years; 1912 does not exist
     years = list(range(1911, 2022))
     years.remove(1912)
-    years = range(1994, 1995)  # Temp
+
+    # When using a custom range, specify it here
+    years = list(range(1940, 1941))
+    # years.remove(1912)
 
     # Get month archives of each year; we will loop over these
     all_month_archives = []
@@ -54,8 +62,9 @@ def main():
         # Save the extracted archive's cases to a parquet
         cases_content_df.to_parquet(cases_dir / f'cases_content_{archive_name}.parquet')
 
-        # # Uncomment if conducting comparison experiment for the different file formats
-        # compare_formats(cases_content_df, cases_dir, archive_name)
+        # Uncomment if conducting comparison experiment for the different file formats
+        if make_format_comparison:
+            compare_formats(cases_content_df, int(year), int(month), cases_dir)
 
         logging.info(f'{archive_name} has been parsed and saved. Time taken: {time.time() - start}')
 
@@ -63,7 +72,8 @@ def main():
     logging.info('All month archives have been parsed and saved.')
 
     # Combine the individual snappy parquet files into the final dataset file using brotli compression
-    create_final_dataset(cases_dir)
+    if make_final_dataset:
+        create_final_dataset(cases_dir)
 
 
 def process_month_archive(month_archive):
@@ -117,42 +127,6 @@ def create_final_dataset(data_dir):
     print('Creation of dataset completed. The temporary parquet files have been deleted.')
     logging.info(f'Creation of dataset completed. Time taken: {time.time() - start}. \
     The temporary parquet files have been deleted.')
-
-
-def compare_formats(cases_df, data_dir, archive_name):
-    """ Compares four formats on writing speed and file size. We test CSV, Feather, Parquet with snappy compression,
-    and Parquet with brotli compression. The experiment only should be run for one year. The experimental files are
-    saved with prefix exp_ to prevent the files from being included in create_final_dataset()
-    """
-    print('Starting comparison of file formats...')
-    logging.info('Starting comparison of file formats...')
-
-    # Save df as CSV
-    start = time.time()
-    cases_df.to_csv(
-        data_dir / f'temp_cases_content{archive_name}.csv',
-        mode='a',
-        index=False,
-        header=False)
-    logging.info(f'Writing cases to csv took {time.time() - start}')
-
-    # Save df as Feather
-    start = time.time()
-    cases_df.to_feather(data_dir / f'cases_content{archive_name}.feather')
-    logging.info(f'Writing cases to feather took {time.time() - start}')
-
-    # Save df as Parquet with snappy compression
-    start = time.time()
-    cases_df.to_parquet(data_dir / f'cases_content_{archive_name}_snappy.parquet')
-    logging.info(f'Writing cases to parquet using snappy took {time.time() - start}')
-
-    # Save df as Parquet with brotli compression
-    start = time.time()
-    cases_df.to_parquet(data_dir / f'cases_content{archive_name}_brotli.parquet', compression='brotli')
-    logging.info(f'Writing cases to parquet using brotli took {time.time() - start}')
-
-    print('Finished comparison of file formats.')
-    logging.info('Finished comparison of file formats.')
 
 
 if __name__ == '__main__':
