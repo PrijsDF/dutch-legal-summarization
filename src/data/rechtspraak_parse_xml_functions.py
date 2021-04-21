@@ -60,11 +60,11 @@ def get_document_attributes(case_rdf):
     tag_pointer_dict = {
         'identifier': 'dcterms:identifier',  # 1 - 1
         'seat_location': 'dcterms:spatial',  # 0 - 1
-        'publisher': 'dcterms:publisher',  # 1 - 1
+        # 'publisher': 'dcterms:publisher',  # 1 - 1, omit because always equal to 'Raad voor de Rechtspraak'
         'creator': 'dcterms:creator',  # 1 - 1
         'case_type': 'dcterms:type',  # 1 - 1
-        # 'language':'dcterms:language', # 1 - 1
-        # 'format':'dcterms:format', # 1 - 1
+        # 'language':'dcterms:language', # 1 - 1, omit because always equal to NL
+        # 'format':'dcterms:format', # 1 - 1, omit because always equal to text/xml
     }
 
     # Tag pointer dictionary for multi tag items
