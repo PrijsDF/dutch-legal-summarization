@@ -11,14 +11,14 @@ from rechtspraak_parse_xml_functions import parse_xml
 from rechtspraak_compare_formats import compare_formats
 
 
-def main(make_final_dataset=False, make_format_comparison=True):
+def main(make_final_dataset=True, number_of_chunks=2, make_format_comparison=False):
     """ Runs data processing scripts to turn external data from (../external) into
         a raw dataset (saved in ../raw) that can be used as a starting point for creating the
         final dataset.
 
         If make_final_dataset is true, then, at the end of the generating process, all month archive data files will be
-        combined into number_of_chunks chunks. Use make_format_comparison to compare four file formats for storing the
-        data.
+        combined into number_of_chunks chunks. We recommend 2 chunks, as 1 (all data in a single file) likely will lead
+        to memory issues. Use make_format_comparison to compare four file formats for storing the data.
     """
     # Start logging
     print('Making raw dataset from external Rechtspraak data...')
@@ -111,18 +111,41 @@ def create_final_dataset(data_dir):
     # Below, we combine the individual snappy parquet files into the final dataset file using brotli compression
     all_parquets = list(data_dir.glob('cases_content_*.parquet'))
 
+    # # Temp
+    # columns_wanted = [
+    #     'identifier', 'missing_parts', 'case_type', 'case_number', 'jurisdiction', 'creator',
+    #     'relation', 'procedures', 'seat_location', 'references',
+    # ]
+    #
+    # cols_as_categorical = [
+    #     'missing_parts', 'case_type', 'jurisdiction', 'creator', 'relation', 'procedures',
+    #     'seat_location', 'references',
+    # ]
+
     # Add parquet files to one df (code from https://stackoverflow.com/a/52193992)
     complete_df = pd.concat(
         pd.read_parquet(parquet_file) for parquet_file in all_parquets
+        # pd.read_parquet(parquet_file)[columns_wanted] for parquet_file in all_parquets
     )
+
+    # # Temp
+    # # print(complete_df.head)
+    # print(complete_df.dtypes)
+    # print(complete_df.memory_usage(deep=True))
+    #
+    # for collie in cols_as_categorical:
+    #     complete_df[collie] = complete_df[collie].astype("category")
+    #
+    # # for col in columns_wanted:
+    # #     print(f'{col} has {len(complete_df[col].unique())} values')
 
     # Save the new complete df
     complete_df.to_parquet(data_dir / 'cases_content.parquet', compression='brotli')
 
-    # Delete the individual temporary parquets
-    # Check whether this puts the files in the bin or completely removes them
-    for parquet_file in all_parquets:
-        parquet_file.unlink()
+    # # Delete the individual temporary parquets
+    # # Check whether this puts the files in the bin or completely removes them
+    # for parquet_file in all_parquets:
+    #     parquet_file.unlink()
 
     print('Creation of dataset completed. The temporary parquet files have been deleted.')
     logging.info(f'Creation of dataset completed. Time taken: {time.time() - start}. \

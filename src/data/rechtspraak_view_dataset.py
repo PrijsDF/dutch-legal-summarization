@@ -13,7 +13,13 @@ def main():
     complete_dataset_path = dataset_dir / 'cases_content.parquet'
 
     # Read the parquet containing the df into a pd df
-    cases_content = pd.read_parquet(complete_dataset_path)
+    # cases_content = pd.read_parquet(complete_dataset_path)
+
+    # Read multiple parquet files into a df
+    cases_content = pd.concat(
+        pd.read_parquet(parquet_file)
+        for parquet_file in dataset_dir.glob('*_198*.parquet')
+    )
 
     # Get a sample of the dataset and save the sample as csv
     samples_df = create_sample_of_df(cases_content, number_of_items=20, only_complete_items=True,
@@ -27,6 +33,7 @@ def main():
 
     # View the sample
     print(samples_df)
+    print(samples_df.dtypes)
 
     # If needed, save the dataset to csv for later inspection
     cases_content.to_csv(dataset_dir / 'cases_content.csv', mode='w', index=False, header=True)
@@ -43,7 +50,7 @@ def create_sample_of_df(df, number_of_items=20, only_complete_items=True, save_s
     samples_df = df.sample(n=number_of_items, random_state=1)
 
     if save_sample:
-        samples_df.to_csv(save_dir / 'cases_content_sample.csv', mode='w', index=False, header=True)
+        samples_df.to_csv(save_dir / 'sample_cases_content.csv', mode='w', index=False, header=True)
 
     return samples_df
 
