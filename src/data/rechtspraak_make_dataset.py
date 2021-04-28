@@ -11,7 +11,7 @@ from rechtspraak_parse_xml_functions import parse_xml
 from rechtspraak_compare_formats import compare_formats
 
 
-def main(make_final_dataset=True, number_of_chunks=2, make_format_comparison=False):
+def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=False):
     """ Runs data processing scripts to turn external data from (../external) into
         a raw dataset (saved in ../raw) that can be used as a starting point for creating the
         final dataset.
@@ -31,8 +31,8 @@ def main(make_final_dataset=True, number_of_chunks=2, make_format_comparison=Fal
     years = list(range(1911, 2022))
     years.remove(1912)
 
-    # When using a custom range, specify it here
-    years = list(range(1940, 1941))
+    # When using a custom range, specify it here (temp only 1996 is available; i deleted the other folders)
+    years = list(range(1996, 1997))
     # years.remove(1912)
 
     # Get month archives of each year; we will loop over these
@@ -68,12 +68,12 @@ def main(make_final_dataset=True, number_of_chunks=2, make_format_comparison=Fal
 
         logging.info(f'{archive_name} has been parsed and saved. Time taken: {time.time() - start}')
 
-    print('Finished parsing archives.')
+    print('Finished parsing archives.\n')
     logging.info('All month archives have been parsed and saved.')
 
     # Combine the individual snappy parquet files into the final dataset file using brotli compression
     if make_final_dataset:
-        create_final_dataset(cases_dir)
+        create_final_dataset(cases_dir, number_of_chunks)
 
 
 def process_month_archive(month_archive):
@@ -100,55 +100,58 @@ def process_month_archive(month_archive):
     return cases_content_df
 
 
-def create_final_dataset(data_dir):
-    """ Combines all individual snappy parquet files into one complete dataset. This dataset then is saved as
-    a parquet using brotli compression, reducing file size as much as possible.
+def create_final_dataset(data_dir, number_of_chunks):
+    """ Combines all individual snappy parquet files into two final chunks that will constitute the complete dataset.
+    These chunks then are saved as two parquet files using brotli compression, reducing file size as much as possible.
     """
-    start = time.time()
+    start_create_final = time.time()
     print('Merging the individual parquet files...')
     logging.info('Merging the individual parquet files...')
 
-    # Below, we combine the individual snappy parquet files into the final dataset file using brotli compression
+    # Read in the individual parquets
     all_parquets = list(data_dir.glob('cases_content_*.parquet'))
 
-    # # Temp
-    # columns_wanted = [
-    #     'identifier', 'missing_parts', 'case_type', 'case_number', 'jurisdiction', 'creator',
-    #     'relation', 'procedures', 'seat_location', 'references',
-    # ]
-    #
-    # cols_as_categorical = [
-    #     'missing_parts', 'case_type', 'jurisdiction', 'creator', 'relation', 'procedures',
-    #     'seat_location', 'references',
-    # ]
+    total_size = sum([p.stat().st_size for p in all_parquets])
+    cumulative = 0
+    middle_files = []
 
-    # Add parquet files to one df (code from https://stackoverflow.com/a/52193992)
-    complete_df = pd.concat(
-        pd.read_parquet(parquet_file) for parquet_file in all_parquets
-        # pd.read_parquet(parquet_file)[columns_wanted] for parquet_file in all_parquets
-    )
+    # Find the indices of the middle files
+    for p in all_parquets:
+        cumulative += p.stat().st_size
 
-    # # Temp
-    # # print(complete_df.head)
-    # print(complete_df.dtypes)
-    # print(complete_df.memory_usage(deep=True))
-    #
-    # for collie in cols_as_categorical:
-    #     complete_df[collie] = complete_df[collie].astype("category")
-    #
-    # # for col in columns_wanted:
-    # #     print(f'{col} has {len(complete_df[col].unique())} values')
+        # Get each file after 1/chunks part of the data (wrt size) has been seen; these will be the cut-off points
+        if cumulative >= total_size/number_of_chunks:
+            index_of_file = all_parquets.index(p)
+            middle_files.append([index_of_file, p])
+            cumulative = 0
 
-    # Save the new complete df
-    complete_df.to_parquet(data_dir / 'cases_content.parquet', compression='brotli')
+    pbar = tqdm(range(number_of_chunks))
+    # Use the indices to create the chunks
+    for i in pbar:
+        pbar.set_description(f'Creating chunk {i+1}')
 
-    # # Delete the individual temporary parquets
-    # # Check whether this puts the files in the bin or completely removes them
-    # for parquet_file in all_parquets:
-    #     parquet_file.unlink()
+        # Wanneer een chunk 1 is, valt de maand-parquet buiten de index; dit eventueel later fixen
+        # For the first and final chunk, we have to use different indices
+        if i == 0:  # first chunk
+            chunk_parquets = all_parquets[:middle_files[i][0]]
+        elif i == number_of_chunks-1:  # final chunk
+            chunk_parquets = all_parquets[middle_files[i-1][0]:]
+        else:
+            chunk_parquets = all_parquets[middle_files[i-1][0]:middle_files[i][0]]
+
+        # Add parquet files to one df (code from https://stackoverflow.com/a/52193992).
+        chunk_df = pd.concat(
+            pd.read_parquet(parquet_file) for parquet_file in chunk_parquets
+        )
+
+        chunk_df.to_parquet(data_dir / f'cases_chunk_{i+1}.parquet', compression='brotli')
+
+    # Delete the individual temporary parquets
+    for parquet_file in all_parquets:
+        parquet_file.unlink()
 
     print('Creation of dataset completed. The temporary parquet files have been deleted.')
-    logging.info(f'Creation of dataset completed. Time taken: {time.time() - start}. \
+    logging.info(f'Creation of dataset completed. Time taken: {time.time() - start_create_final}. \
     The temporary parquet files have been deleted.')
 
 
