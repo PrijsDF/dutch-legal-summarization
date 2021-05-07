@@ -13,12 +13,18 @@ def main():
     dataset_dir = DATA_DIR / 'raw/OpenDataUitspraken'
 
     # Get all data and load these into a df
-    # all_cases = read_dataset(dataset_dir)
-    # print(all_cases)
+    all_cases = read_dataset(dataset_dir)
+
+    mask = (all_cases['missing_parts'] == 'none') \
+        & (all_cases['summary'] != '-') \
+        & (all_cases['summary'].str.split().str.len() > 10)
+
+    filtered = all_cases.loc[mask, ['identifier', 'summary', 'description']]
+    print(filtered)
 
     # # Create aggregate stats dataframe
-    year_stats = create_year_counts_df(dataset_dir)
-    print(year_stats)
+    # decade_stats = create_year_counts_df(dataset_dir)
+    # print(decade_stats)
 
     # # Get a sample of the dataset and save the sample as csv
     # samples_df = create_sample_of_df(all_cases, number_of_items=50, only_complete_items=False,
@@ -38,10 +44,10 @@ def read_dataset(dataset_dir):
     # all data; otherwise it might take around 5 min to load the data. Without these, it takes .. min
     # columns = ['identifier', 'missing_parts', 'judgment_date']
     cases_content = pd.concat(
-        pd.read_parquet(parquet_file) for parquet_file in dataset_dir.glob('cases_chunk_*.parquet')
+        pd.read_parquet(parquet_file) for parquet_file in dataset_dir.glob('1996_cases_chunk_*.parquet')
         # pd.read_parquet(parquet_file)[columns] for parquet_file in dataset_dir.glob('cases_chunk_*.parquet')
     )
-    print(f'Time taken to load in dataset: {round(time.time()-start, 2)} seconds')
+    print(f'Time taken to load in dataset: {round(time.time() - start, 2)} seconds')
 
     return cases_content
 
@@ -73,6 +79,7 @@ def create_year_counts_df(dataset_dir):
     # Loop over the chunks and process the cases for each year
     all_years = range(1940, 2022)
     decades = list(range(1910, 2021, 10))
+
     years_list = [[year, 0, 0, 0] for year in all_years]
     decades_list = [[decade, 0, 0, 0] for decade in decades]
 
@@ -82,7 +89,8 @@ def create_year_counts_df(dataset_dir):
         for current_decade in decades:
             # Subset the df to get all cases of current year
             # cases_of_year = chunk_df[chunk_df['identifier'].apply(lambda x: x.split(':')[3] == str(current_year))]
-            cases_of_decade = chunk_df[chunk_df['identifier'].apply(lambda x: int(int(x.split(':')[3])/10)*10 == current_decade)]
+            cases_of_decade = chunk_df[
+                chunk_df['identifier'].apply(lambda x: int(int(x.split(':')[3]) / 10) * 10 == current_decade)]
             number_of_cases = len(cases_of_decade)
 
             # Get missing counts
@@ -104,7 +112,7 @@ def create_year_counts_df(dataset_dir):
             #     for year in years_list
             # ]
             decades_list = [
-                [decade[0], decade[1]+number_of_cases, decade[2]+number_of_completes, decade[3]+short_summaries]
+                [decade[0], decade[1] + number_of_cases, decade[2] + number_of_completes, decade[3] + short_summaries]
                 if decade[0] == current_decade
                 else [decade[0], decade[1], decade[2], decade[3]]
                 for decade in decades_list
@@ -115,7 +123,7 @@ def create_year_counts_df(dataset_dir):
     # Save the df to a csv
     decade_stats_df.to_csv(REPORTS_DIR / 'decades_stats.csv')
 
-    print(f'Time taken to load in dataset: {round(time.time()-start, 2)} seconds')
+    print(f'Time taken to load in dataset: {round(time.time() - start, 2)} seconds')
 
     return decade_stats_df
 
