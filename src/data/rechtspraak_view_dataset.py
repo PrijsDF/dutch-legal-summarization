@@ -20,18 +20,18 @@ def main():
         & (all_cases['summary'].str.split().str.len() > 10)
 
     filtered = all_cases.loc[mask, ['identifier', 'summary', 'description']]
-    print(filtered)
+    # print(filtered)
 
     # # Create aggregate stats dataframe
     # decade_stats = create_year_counts_df(dataset_dir)
     # print(decade_stats)
 
     # # Get a sample of the dataset and save the sample as csv
-    # samples_df = create_sample_of_df(all_cases, number_of_items=50, only_complete_items=False,
-    #                                  save_sample=False, save_dir=dataset_dir)
+    samples_df = create_sample_of_df(all_cases, number_of_items=100, only_complete_items=True,
+                                     save_sample=True, save_dir=dataset_dir)
 
     # # View the sample
-    # print(samples_df)
+    print(samples_df)
     # print(samples_df.dtypes)
 
 
@@ -44,7 +44,7 @@ def read_dataset(dataset_dir):
     # all data; otherwise it might take around 5 min to load the data. Without these, it takes .. min
     # columns = ['identifier', 'missing_parts', 'judgment_date']
     cases_content = pd.concat(
-        pd.read_parquet(parquet_file) for parquet_file in dataset_dir.glob('1996_cases_chunk_*.parquet')
+        pd.read_parquet(parquet_file) for parquet_file in dataset_dir.glob('cases_chunk_*.parquet')
         # pd.read_parquet(parquet_file)[columns] for parquet_file in dataset_dir.glob('cases_chunk_*.parquet')
     )
     print(f'Time taken to load in dataset: {round(time.time() - start, 2)} seconds')
@@ -57,7 +57,12 @@ def create_sample_of_df(df, number_of_items=20, only_complete_items=True, save_s
     are cases with both a summary and a description). Furthermore, if needed the sample can be saved."""
     # Subset the df to only include complete cases
     if only_complete_items:
-        df = df.loc[df['missing_parts'] == 'none']
+        mask = (df['missing_parts'] == 'none') \
+               & (df['summary'] != '-') \
+               & (df['summary'].str.split().str.len() > 10)
+
+        df = df.loc[mask, ]
+        #df = df.loc[df['missing_parts'] == 'none']
 
     # Pick sample
     samples_df = df.sample(n=number_of_items, random_state=1)
