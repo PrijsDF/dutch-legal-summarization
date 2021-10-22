@@ -11,7 +11,7 @@ from rechtspraak_parse_xml_functions import parse_xml
 from rechtspraak_compare_formats import compare_formats
 
 
-def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=False):
+def main(make_final_dataset=False, number_of_chunks=4, make_format_comparison=False):
     """ Runs data processing scripts to turn external data from (../external) into
         a raw dataset (saved in ../raw) that can be used as a starting point for creating the
         final dataset.
@@ -32,7 +32,7 @@ def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=Fal
     years.remove(1912)
 
     # When using a custom range, specify it here (temp only 1996 is available; i deleted the other folders)
-    years = list(range(1996, 1997))
+    years = list(range(2020, 2021))
     # years.remove(1912)
 
     # Get month archives of each year; we will loop over these
@@ -58,6 +58,8 @@ def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=Fal
 
         # Parse all cases in month archive
         cases_content_df = process_month_archive(month_archive)
+
+        print(len(cases_content_df))
 
         # Save the extracted archive's cases to a parquet
         cases_content_df.to_parquet(cases_dir / f'cases_content_{archive_name}.parquet')
@@ -144,7 +146,7 @@ def create_final_dataset(data_dir, number_of_chunks):
             pd.read_parquet(parquet_file) for parquet_file in chunk_parquets
         )
 
-        chunk_df.to_parquet(data_dir / f'cases_chunk_{i+1}.parquet', compression='brotli')
+        chunk_df.to_parquet(data_dir / f'1996_cases_chunk_{i+1}.parquet', compression='brotli')
 
     # Delete the individual temporary parquets
     for parquet_file in all_parquets:
