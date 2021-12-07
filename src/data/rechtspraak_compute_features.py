@@ -1,5 +1,5 @@
 import pandas as pd
-from src.utils import DATA_DIR, REPORTS_DIR
+from src.utils import DATA_DIR, REPORTS_DIR, load_dataset
 import time
 
 import matplotlib.pyplot as plt
@@ -14,13 +14,11 @@ pd.options.display.width = None
 
 def main():
     """View Open Rechtspraak dataset with pandas."""
-    dataset_dir = DATA_DIR / 'interim/OpenDataUitspraken'  # 'raw/OpenDataUitspraken'
+    # Load the INTERIM dataset
+    all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/raw')  # Should be interim, once it is created
 
-    # Get all data and load these into a df
-    all_cases = read_dataset(dataset_dir)
-
-    cases_features = compute_features_of_df(all_cases, save_df=False, save_dir=REPORTS_DIR)
-    print(cases_features)
+    #cases_features = compute_features_of_df(all_cases, save_df=False, save_dir=REPORTS_DIR)
+    #print(cases_features)
 
     # agg_cases_features = create_agg_df(REPORTS_DIR / 'dataset_metrics.csv')
     # print(agg_cases_features)
@@ -32,23 +30,6 @@ def main():
     # Create aggregate stats dataframe
     # decade_stats = create_year_counts_df(dataset_dir)
     # print(decade_stats)
-
-
-def read_dataset(dataset_dir):
-    """Read all data and combine these in a single df. Preferably, only the meta information should be fetched;
-    otherwise this function might take up to 5 minutes to run."""
-    start = time.time()
-
-    # Read multiple parquet files into a df, preferably dont load in the summaries and case descriptions when loading
-    # all data; otherwise it might take around 5 min to load the data. Without these, it takes .. min
-    # columns = ['identifier', 'missing_parts', 'judgment_date']
-    cases_content = pd.concat(
-        pd.read_parquet(parquet_file) for parquet_file in dataset_dir.glob('viable_cases_chunk_*.parquet')
-        # pd.read_parquet(parquet_file)[columns] for parquet_file in dataset_dir.glob('cases_chunk_*.parquet')
-    )
-    print(f'Time taken to load in dataset: {round(time.time() - start, 2)} seconds')
-
-    return cases_content
 
 
 def compute_fragments(dir):

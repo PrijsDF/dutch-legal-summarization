@@ -11,7 +11,7 @@ from rechtspraak_parse_xml_functions import parse_xml
 from rechtspraak_compare_formats import compare_formats
 
 
-def main(make_final_dataset=False, number_of_chunks=4, make_format_comparison=False):
+def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=False):
     """ Runs data processing scripts to turn external data from (../external) into
         a raw dataset (saved in ../raw) that can be used as a starting point for creating the
         final dataset.
@@ -19,59 +19,62 @@ def main(make_final_dataset=False, number_of_chunks=4, make_format_comparison=Fa
         If make_final_dataset is true, then, at the end of the generating process, all month archive data files will be
         combined into number_of_chunks chunks. We recommend 2 chunks, as 1 (all data in a single file) likely will lead
         to memory issues. Use make_format_comparison to compare four file formats for storing the data.
+
+        In order to parse xml (in our way) with bs4, we need to install the library lxml. Also, for storage purposes
+        we are using parquet; here, too, we need an external library to falicitate this functionality for Pandas. We
+        chose to use pyarrow, albeit that fastparquet also would be a viable option.
     """
     # Start logging
     print('Making raw dataset from external Rechtspraak data...')
     logging.info('Making raw dataset from external Rechtspraak data...')
 
     # We will store the intermediary files and final raw dataset here
-    cases_dir = DATA_DIR / 'raw/OpenDataUitspraken'
+    cases_dir = DATA_DIR / 'open_data_uitspraken/raw'
 
     # Specify years; 1912 does not exist
     years = list(range(1911, 2022))
     years.remove(1912)
 
-    # When using a custom range, specify it here (temp only 1996 is available; i deleted the other folders)
-    years = list(range(2020, 2021))
-    # years.remove(1912)
-
-    # Get month archives of each year; we will loop over these
-    all_month_archives = []
-    for year in years:
-        year_path = DATA_DIR / f'external/OpenDataUitspraken/{str(year)}'
-        month_archives = [x for x in year_path.iterdir() if x.is_file()]
-        all_month_archives += month_archives
-
-    # Start processing all archives
-    pbar = tqdm(all_month_archives)
-    for month_archive in pbar:
-        # To compute time per month archive
-        start = time.time()
-
-        # Used when saving files later on and for configuration of the progress bar
-        archive_name = month_archive.stem
-
-        # Config progress bar
-        year = archive_name[:4]
-        month = archive_name[4:]
-        pbar.set_description(f'Processing month {month} of {year}')
-
-        # Parse all cases in month archive
-        cases_content_df = process_month_archive(month_archive)
-
-        print(len(cases_content_df))
-
-        # Save the extracted archive's cases to a parquet
-        cases_content_df.to_parquet(cases_dir / f'cases_content_{archive_name}.parquet')
-
-        # Uncomment if conducting comparison experiment for the different file formats
-        if make_format_comparison:
-            compare_formats(cases_content_df, int(year), int(month), cases_dir)
-
-        logging.info(f'{archive_name} has been parsed and saved. Time taken: {time.time() - start}')
-
-    print('Finished parsing archives.\n')
-    logging.info('All month archives have been parsed and saved.')
+    # # When using a custom range, specify it here (temp only 1996 is available; i deleted the other folders)
+    # # years = list(range(1980, 1981))
+    # # years.remove(1912)
+    #
+    # # Get month archives of each year; we will loop over these
+    # all_month_archives = []
+    # for year in years:
+    #     year_path = DATA_DIR / f'open_data_uitspraken/external/{str(year)}'
+    #     month_archives = sorted([x for x in year_path.iterdir() if x.is_file()])
+    #     all_month_archives += month_archives
+    #
+    # # Start processing all archives
+    # pbar = tqdm(all_month_archives)
+    # for month_archive in pbar:
+    #     # To compute time per month archive
+    #     start = time.time()
+    #
+    #     # Used when saving files later on and for configuration of the progress bar
+    #     archive_name = month_archive.stem
+    #
+    #     # Config progress bar
+    #     year = archive_name[:4]
+    #     month = archive_name[4:]
+    #     pbar.set_description(f'Processing month {month} of {year}')
+    #
+    #     # Parse all cases in month archive
+    #     cases_content_df = process_month_archive(month_archive)
+    #     #print(len(cases_content_df))
+    #
+    #     # Save the extracted archive's cases to a parquet
+    #     cases_content_df.to_parquet(cases_dir / f'cases_content_{archive_name}.parquet')
+    #
+    #     # Uncomment if conducting comparison experiment for the different file formats
+    #     if make_format_comparison:
+    #         compare_formats(cases_content_df, int(year), int(month), cases_dir)
+    #
+    #     logging.info(f'{archive_name} has been parsed and saved. Time taken: {time.time() - start}')
+    #
+    # print('Finished parsing archives.\n')
+    # logging.info('All month archives have been parsed and saved.')
 
     # Combine the individual snappy parquet files into the final dataset file using brotli compression
     if make_final_dataset:
@@ -146,7 +149,7 @@ def create_final_dataset(data_dir, number_of_chunks):
             pd.read_parquet(parquet_file) for parquet_file in chunk_parquets
         )
 
-        chunk_df.to_parquet(data_dir / f'1996_cases_chunk_{i+1}.parquet', compression='brotli')
+        chunk_df.to_parquet(data_dir / f'cases_chunk_{i+1}.parquet', compression='brotli')
 
     # Delete the individual temporary parquets
     for parquet_file in all_parquets:
