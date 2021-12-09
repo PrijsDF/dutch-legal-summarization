@@ -1,21 +1,34 @@
-import pandas as pd
-from src.utils import DATA_DIR, REPORTS_DIR, load_dataset
 import time
+import re
+from pprint import pprint
 
+import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import spacy
+import gensim
+from gensim.utils import simple_preprocess
+import gensim.corpora as corpora
+import nltk
+from nltk.corpus import stopwords  # nltk.download('stopwords')
+
+from src.utils import DATA_DIR, REPORTS_DIR, load_dataset
 
 # Some pandas options that allow to view all collumns and rows at once
 pd.set_option('display.max_columns', 500)
 pd.set_option('max_colwidth', 400)
 pd.options.display.width = None
+# This will prevent a warning from happening during the interpunction removal in the LDA function
+pd.options.mode.chained_assignment = None
 
 
 def main():
     """View Open Rechtspraak dataset with pandas."""
     # Load the INTERIM dataset
-    all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/raw')  # Should be interim, once it is created
+    all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/interim')  # Should be interim, once it is created
+
+    # Perform LDA
+    compute_topic_similarity(all_cases)
 
     #cases_features = compute_features_of_df(all_cases, save_df=False, save_dir=REPORTS_DIR)
     #print(cases_features)
@@ -32,17 +45,73 @@ def main():
     # print(decade_stats)
 
 
+def compute_topic_similarity(dataset):
+    """Applies LDA as described in Blei (2003), Latent dirichlet allocation. Used https://towardsdatascience.com/end
+    -to-end-topic-modeling-in-python-latent-dirichlet-allocation-lda-35ce4ed6b3e0 was used as a guide. We follow
+    Bommasani & Cardie (2020), Intrinsic Evaluation of Summarization Datasets, in only using the case descriptions to
+    train the LDA model. Then, we use this model to compute the topic similarity between a case and a summary."""
+    start = time.time()
+
+    # Temp. Take a subset of data
+    # dataset = dataset[:100]
+
+    # First remove interpunction etc.; do this with spacy later
+    dataset['proc_description'] = dataset['description'].map(lambda x: re.sub('[,/\\[\\].!?;:(){}]', '', x))
+    dataset['proc_description'] = dataset['proc_description'].map(lambda x: x.lower())
+    dataset['proc_description'] = dataset['proc_description'].map(lambda x: x.replace("|", " "))
+
+    # Stop words to be removed
+    stop_words = stopwords.words('dutch')
+    stop_words.extend(['ter', 'ten'])
+
+    # Tokenization
+    def sent_to_words(sentences):
+        for sentence in sentences:
+            # deacc=True removes punctuations
+            yield gensim.utils.simple_preprocess(str(sentence), deacc=True)
+
+    # remove stop words
+    def remove_stopwords(texts):
+        return [[word for word in simple_preprocess(str(doc)) if word not in stop_words] for doc in texts]
+
+    data = dataset['proc_description'].values.tolist()
+    data_words = remove_stopwords(list(sent_to_words(data)))
+    # print(data_words[:1][0][:30])
+
+    # Create Dictionary
+    id2word = corpora.Dictionary(data_words)
+
+    # Create Corpus
+    texts = data_words
+
+    # Term Document Frequency
+    corpus = [id2word.doc2bow(text) for text in texts]
+    # print(corpus[:1][0][:30])
+
+    # Build LDA model
+    num_topics = 5
+    lda_model = gensim.models.LdaMulticore(corpus=corpus,
+                                           id2word=id2word,
+                                           num_topics=num_topics)
+
+    # Print the Keyword in the 10 topics
+    pprint(lda_model.print_topics())
+    doc_lda = lda_model[corpus]
+
+    print(f'Time taken to perform LDA on dataset: {round(time.time() - start, 2)} seconds')
+
+
 def compute_fragments(dir):
     """See the paper by Grusky et al. (2018) for a textual description of the algorithm"""
 
-    sum = "Table 1 shows the aggregate statistics about our corpus. The whole list of texts consists of more than " \
-          "27 million words, of which 320302 are distinct."
+    summ = "Table 1 shows the aggregate statistics about our corpus. The whole list of texts consists of more than " \
+           "27 million words, of which 320302 are distinct."
     text = "Table 1 shows the basic statistics about our corpus. We obtained more than 3 million segments from 30554 " \
            "documents, and we have 362811 segments in the gist sections. Overall, 11.54% of the segments were " \
            "chosen as gist statements. The whole corpus contains more than 27 million words, among which 320302 are " \
            "distinct."
 
-    s_tokens = sum.replace(".", "").replace(",", "").split()
+    s_tokens = summ.replace(".", "").replace(",", "").split()
     a_tokens = text.replace(".", "").replace(",", "").split()
 
     s_len = len(s_tokens)
