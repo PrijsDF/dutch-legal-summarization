@@ -26,7 +26,7 @@ def load_dataset(data_dir):
     # all data; otherwise it might take around 5 min to load the data. Without these, it takes .. min
     # columns = ['identifier', 'missing_parts', 'judgment_date']
     cases_content = pd.concat(
-        pd.read_parquet(parquet_file) for parquet_file in data_dir.glob('cases_chunk_*.parquet')
+        pd.read_parquet(parquet_file) for parquet_file in data_dir.glob('*cases_chunk_*.parquet')
         # pd.read_parquet(parquet_file)[columns] for parquet_file in dataset_dir.glob('cases_chunk_*.parquet')
     )
     print(f'Time taken to load in dataset: {round(time.time() - start, 2)} seconds')
