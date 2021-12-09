@@ -11,6 +11,7 @@ from gensim.utils import simple_preprocess
 import gensim.corpora as corpora
 import nltk
 from nltk.corpus import stopwords  # nltk.download('stopwords')
+from rouge import Rouge
 
 from src.utils import DATA_DIR, REPORTS_DIR, load_dataset
 
@@ -23,21 +24,40 @@ pd.options.mode.chained_assignment = None
 
 
 def main():
-    """View Open Rechtspraak dataset with pandas."""
-    # Load the INTERIM dataset
-    all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/interim')  # Should be interim, once it is created
+    """Compute all features of the dataset following Bommasani and Cardie (2020). I will use these to compare the
+    dataset to existing benchmarks for summarization."""
+    # Load the interim dataset
+    all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/interim')
 
-    # Perform LDA
-    compute_topic_similarity(all_cases)
+    # 1. Create df with placeholders for the features (4 simple features and 6 complex features
 
-    #cases_features = compute_features_of_df(all_cases, save_df=False, save_dir=REPORTS_DIR)
-    #print(cases_features)
+    # 1.b. Maybe preprocess te dataset with gensim
 
+    # 2. Compute simple features
+
+    # 3. Compute word_compression
+
+    # 4. Compute sentence_compression
+
+    # 5. Compute topic_similarity
+    # compute_topic_similarity(all_cases)
+
+    # 6. Compute abstractivity
+    # compute_fragments(dataset_dir)
+
+    # 7. Compute redundancy
+
+    # 8. Compute semantic coherence
+
+    # 9. Average the computed features for the whole dataset
     # agg_cases_features = create_agg_df(REPORTS_DIR / 'dataset_metrics.csv')
     # print(agg_cases_features)
 
-    # compute_fragments(dataset_dir)
+    # XX. Onderstaande methode herschrijven en onderbrengen in 1. en misschien 1.b.
+    # cases_features = compute_features_of_df(all_cases, save_df=False, save_dir=REPORTS_DIR)
+    # print(cases_features)
 
+    # XXX. Onderstaande functies naar visualization/...py verplaatsen; misschien twee aparte files
     # create_hist_fig(REPORTS_DIR / 'dataset_metrics.csv')
 
     # Create aggregate stats dataframe
@@ -47,9 +67,10 @@ def main():
 
 def compute_topic_similarity(dataset):
     """Applies LDA as described in Blei (2003), Latent dirichlet allocation. Used https://towardsdatascience.com/end
-    -to-end-topic-modeling-in-python-latent-dirichlet-allocation-lda-35ce4ed6b3e0 was used as a guide. We follow
+    -to-end-topic-modeling-in-python-latent-dirichlet-allocation-lda-35ce4ed6b3e0 as a guide. We follow
     Bommasani & Cardie (2020), Intrinsic Evaluation of Summarization Datasets, in only using the case descriptions to
-    train the LDA model. Then, we use this model to compute the topic similarity between a case and a summary."""
+    train the LDA model. Then, we use this model to give the topic distribution for both a case and its summary.
+    Finally, these distributions are compared using the Jensen-Shannon distance, implemented using scipy."""
     start = time.time()
 
     # Temp. Take a subset of data
@@ -101,7 +122,7 @@ def compute_topic_similarity(dataset):
     print(f'Time taken to perform LDA on dataset: {round(time.time() - start, 2)} seconds')
 
 
-def compute_fragments(dir):
+def compute_fragments():
     """See the paper by Grusky et al. (2018) for a textual description of the algorithm"""
 
     summ = "Table 1 shows the aggregate statistics about our corpus. The whole list of texts consists of more than " \
