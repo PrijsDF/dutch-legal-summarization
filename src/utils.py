@@ -7,6 +7,7 @@ from tqdm import tqdm
 
 ROOT_DIR = Path(sys.path[1])
 DATA_DIR = ROOT_DIR / 'data'
+MODELS_DIR = ROOT_DIR / 'models'
 REPORTS_DIR = ROOT_DIR / 'reports'
 LOG_DIR = ROOT_DIR / 'reports/logs'
 
