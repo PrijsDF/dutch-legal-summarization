@@ -35,8 +35,8 @@ def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=Fal
     years = list(range(1911, 2022))
     years.remove(1912)
 
-    # When using a custom range, specify it here (temp only 1996 is available; i deleted the other folders)
-    years = list(range(2000, 2001))
+    # When using a custom range, specify it here
+    # years = list(range(2000, 2001))
     # years.remove(1912)
 
     # Get month archives of each year; we will loop over these
