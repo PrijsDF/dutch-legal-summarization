@@ -5,7 +5,6 @@ import spacy
 from gensim.models import LdaModel
 import gensim.corpora as corpora
 from rouge import Rouge
-from scipy.spatial import distance
 from torch.nn.functional import softmax
 from transformers import BertForNextSentencePrediction, BertTokenizer
 
@@ -35,20 +34,14 @@ nlp.max_length = 1500000  # Otherwise the limit will be 1000000 which is too lit
 bert_model = BertForNextSentencePrediction.from_pretrained('bert-base-multilingual-cased')
 tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
 
-# Load LDA model and the corresponding dictionary
-lda_model = LdaModel.load(str(MODELS_DIR / 'lda_model'))
-corpus_dictionary = corpora.Dictionary.load_from_text(str(MODELS_DIR / 'lda_dictionary'))
-
 # Initialize ROUGE, to be used in the redundancy computation
 rouge = Rouge()
 
 
 def main():
-    """Compute all features of the dataset following Bommasani and Cardie (2020). I will use these to compare the
-    dataset to existing benchmarks for summarization. These authors also published code containing computations of
-    these features. I didn't follow their implementation.
-
-    https://stackoverflow.com/a/56746204; herschrijven om list te gebruiken en niet pandas append."""
+    """Currently this file practically is a adjusted copy of the 'rechtspraak_compute_features.py' file. Here,
+    we compute features derived from Bommasani and Cardie (2020) using the cases' texts. These features, later, will be
+    used for clustering of cases."""
     # Load the interim dataset
     all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/interim')
 
@@ -61,8 +54,7 @@ def main():
     # 2. Add placeholders to the cases list's dicts for each of the features (4 simple features and 6 complex features)
     # This will hold all the cases' feature values; only at the end, we will convert this into a df
     features_dict = {
-        'topic_similarity': -1,
-        'abstractivity': -1,
+        'topic_class': -1,
         'redundancy': -1,
         'semantic_coherence': -1
     }
@@ -87,11 +79,17 @@ def main():
         # Change the values of the case in the complete list
         cases_dict_list[index] = {**cases_dict_list[index], **case}
 
+    # for c in cases_dict_list[:20]:
+    #     del c['summary']
+    #     del c['description']
+    #
+    #     print(c)
+
     # Now for each case we want to compute each of the features for all cases that haven't been done yet
     start = time.time()
     for i in range(len(cases_dict_list)):
         # Only do something if the cases has not been handled in the checkpoint yet
-        if cases_dict_list[i]['topic_similarity'] == -1:
+        if cases_dict_list[i]['topic_class'] == -1:
             # Check time and save checkpoint
             if i % 100 == 0 and i > 0:
                 print(f'{len(cases_dict_list) - (i + 1)} cases left. '
@@ -99,7 +97,7 @@ def main():
 
                 # Make a pd df from the cases that we derived features for
                 df_from_dict = pd.DataFrame.from_records([case for case in cases_dict_list
-                                                          if case['topic_similarity'] != -1],
+                                                          if case['topic_class'] != -1],
                                                          exclude=['summary', 'description'])
 
                 # Save the checkpoint
@@ -112,36 +110,23 @@ def main():
             text_doc = nlp(cases_dict_list[i]['description'])
 
             # 3 Compute the simple features + word_compression and sentence_compression
-            #start1 = time.time()
-            simple_features = compute_simple_features(summary_doc, text_doc)
-            #print(f'Simple features time: {round((time.time() - start1), 4)} minutes')
+            simple_features = compute_simple_features(text_doc)
 
             # Combine the computed simple features and the cases' components
             cases_dict_list[i] = {**cases_dict_list[i], **simple_features}
 
-            # 4. Compute Topic Similarity
-            #start2 = time.time()
-            cases_dict_list[i]['topic_similarity'] = compute_topic_similarity(summary_doc, text_doc)
-            #print(f'Topic Similarity time: {round((time.time() - start2), 4)} minutes')
-
-            # 5. Compute Abstractivity
-            #start3 = time.time()
-            cases_dict_list[i]['abstractivity'] = compute_abstractivity(summary_doc, text_doc)
-            #print(f'Abstractivity time: {round((time.time() - start3), 4)} minutes')
+            # 4. Compute the biggest topic (class) of the text
+            cases_dict_list[i]['topic_class'] = compute_topic_class(summary_doc, text_doc)
 
             # 6. Compute Semantic Coherence
-            #start4 = time.time()
-            cases_dict_list[i]['semantic_coherence'] = compute_semantic_coherence(summary_doc)
-            #print(f'Semantic Coherence time: {round((time.time() - start4), 4)} minutes')
+            cases_dict_list[i]['semantic_coherence'] = compute_semantic_coherence(text_doc)
 
             # 7. Compute Redundancy
-            #start5 = time.time()
-            cases_dict_list[i]['redundancy'] = compute_redundancy(summary_doc)
-            #print(f'Redundancy time: {round((time.time() - start5), 4)} minutes')
+            cases_dict_list[i]['redundancy'] = compute_redundancy(text_doc)
 
             # Make case's text and summary None to boost further speed
-            cases_dict_list[i]['summary'] = 1
-            cases_dict_list[i]['description'] = 1
+            cases_dict_list[i]['summary'] = None
+            cases_dict_list[i]['description'] = None
 
     # print(cases_dict_list)
     print(f'Total time taken to compute metrics of dataset: {round(time.time() - start, 2)} seconds')
@@ -178,135 +163,47 @@ def sentencize_text(doc):
     return [sent for sent in doc.sents]
 
 
-def compute_simple_features(summary_doc, text_doc):
+def compute_simple_features(text_doc):
     """Compute the simple features and two complex features, namely the compressions. Currently, stop words included.
     The function will return the features_df after filling in the features for each case."""
     text_word_length = len(tokenize_text(text_doc))
     text_sent_length = len(sentencize_text(text_doc))
 
-    summary_word_length = len(tokenize_text(summary_doc))
-    summary_sent_length = len(sentencize_text(summary_doc))
-
-    # Compute the compression scores; 999 means that some value was zero
-    if summary_word_length > 0 and text_word_length > 0:
-        cmp_words = round(1 - summary_word_length / text_word_length, 4)
-    else:
-        cmp_words = 999
-
-    if summary_sent_length > 0 and text_sent_length > 0:
-        cmp_sents = round(1 - summary_sent_length / text_sent_length, 4)
-    else:
-        cmp_sents = 999
-
     # Scores for current case; we add the other ones later (make them 999 for now)
     simple_features = {
-        'sum_words': summary_word_length,
-        'sum_sents': summary_sent_length,
         'desc_words': text_word_length,
         'desc_sents': text_sent_length,
-        'cmp_words': cmp_words,
-        'cmp_sents': cmp_sents,
     }
 
     return simple_features
 
 
-def compute_topic_similarity(summary_doc, text_doc):
-    """We compare the case's text and summary on topic similarity by queuring the LDA model that we learned earlier.
+def compute_topic_class(summary_doc, text_doc):
+    """We compute the topic_class by queuring the LDA model that we learned earlier.
 
     First, we load the lda model that we generated in models/train_lda_model.py. Then, we use this model to
-    give the topic distribution for both a case and its summary. Finally, these distributions are compared using
-    the Jensen-Shannon distance, implemented using scipy.
+    give the topic class for the case text. This is the topic class that the case text is most associated with.
 
     Importantly, the same preprocessing steps and stop word filters need to be applied here as to when the lda model
     was trained. I.e. we need to remove punctuation and make the texts lowercase."""
+    # Load LDA model and the corresponding dictionary
+    lda_model = LdaModel.load(str(MODELS_DIR / 'lda_model'))
+    corpus_dictionary = corpora.Dictionary.load_from_text(str(MODELS_DIR / 'lda_dictionary'))
+
     # Tokenize the two spacy docs; we exclude stop words
-    summary_tokenized = tokenize_text(summary_doc, rm_stop_words=True)
     text_tokenized = tokenize_text(text_doc, rm_stop_words=True)
 
     # Create bags of ids of the text and summary, using the dictionary
-    summary_bow = corpus_dictionary.doc2bow(summary_tokenized)
     text_bow = corpus_dictionary.doc2bow(text_tokenized)
 
-    # Get the topic distributions of the case text and summary
-    summary_topic_dis = lda_model.get_document_topics(summary_bow, minimum_probability=0)
+    # Get the topic class of the case text
     text_topic_dis = lda_model.get_document_topics(text_bow, minimum_probability=0)
-    # print(summary_topic_dis)
     # print(text_topic_dis)
 
-    # Next, we want to compare the two distributions using the Jensen Shannon distance, via scipy
-    js_distance = distance.jensenshannon([prob[1] for prob in summary_topic_dis],
-                                         [prob[1] for prob in text_topic_dis])
+    topic_class = max(text_topic_dis, key=lambda item: item[1])[0]
+    # print(topic_class)
 
-    # print(f'{js_distance}\n')
-
-    # Finally, we derive the topic similarity score by subtracting the js distance from 1
-    topic_similarity = round(1 - js_distance, 4)
-
-    return topic_similarity
-
-
-def compute_abstractivity(summary_doc, text_doc):
-    """Here we derive so-called 'fragments' and use these to compute a score that measures the abstractivity of the
-    summary in comparison with its source text. Interestingly, some summaries measure a 0 on abstractivity, meaning
-    that the whole summary is to be found in the source text. This could be examined in more detail.
-
-    See the paper by Grusky et al. (2018) for a textual description of the algorithm."""
-
-    # First, tokenize the two documents; don't remove stopwords however
-    summary_tokenized = tokenize_text(summary_doc, rm_stop_words=False)
-    text_tokenized = tokenize_text(text_doc, rm_stop_words=False)
-
-    summary_length = len(summary_tokenized)
-    text_length = len(text_tokenized)
-
-    fragments = []
-    i = 0
-    j = 0
-
-    # See the paper of Grusky et al. (2018) for a textual description
-    while i < summary_length:
-        fragment = []
-
-        while j < text_length:
-            if summary_tokenized[i] == text_tokenized[j]:
-                i_spar = i
-                j_spar = j
-                # print(s_tokens[i], a_tokens[j])
-
-                while summary_tokenized[i_spar] == text_tokenized[j_spar]:
-                    i_spar += 1
-                    j_spar += 1
-
-                    if j_spar == text_length or i_spar == summary_length:
-                        break
-
-                if len(fragment) < (i_spar - i):
-                    fragment = []
-                    for r in range(i, i_spar):
-                        fragment.append(summary_tokenized[r])
-                # else:
-                    # print(f"No new fragment token to add in i: {i}")
-
-                j = j_spar
-            else:
-                j += 1
-        i += max(len(fragment), 1)
-        j = 0
-
-        if fragment:
-            fragments.append(fragment)
-
-    # print(fragments)
-    # print([len(f) for f in fragments])
-
-    # Agg. length of all fragments
-    agg_fragment_length = sum([len(f) for f in fragments])
-
-    # Compute the abstractivity by comparing the aggregate fragment length with the summary length
-    abstractivity = round(1 - (agg_fragment_length / summary_length), 4)
-
-    return abstractivity
+    return topic_class
 
 
 def compute_semantic_coherence(summary_doc):
@@ -379,11 +276,12 @@ def compute_redundancy(summary_doc):
 
                     redundancy += rouge_l_fscore
 
-        # Take the mean of the total redundancy; if there were no sent combinations then give a redundancy of 0
+        # Take the mean of the total redundancy; if there were not sent combinations then give 998 as something was
+        # wrong
         if total_combinations_done > 0:
             redundancy = round(redundancy / total_combinations_done, 4)
         else:
-            redundancy = 0
+            redundancy = 998
         # print(f'Total sent combinations:{total_combinations_done}, Found redundancy: {redundancy}')
     else:
         redundancy = 999
