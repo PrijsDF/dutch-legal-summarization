@@ -18,10 +18,16 @@ def load_dataset(data_dir):
 
     # columns = ['identifier', 'missing_parts', 'judgment_date']
     cases_content = pd.concat(
-        pd.read_parquet(parquet_file) for parquet_file in data_dir.glob('*cases_bk_chunk_*.parquet')  # temp _bk_
+        pd.read_parquet(parquet_file) for parquet_file in data_dir.glob('*cases_bk2_chunk_*.parquet')  # temp _bk_
         # pd.read_parquet(parquet_file)[columns] for parquet_file in dataset_dir.glob('cases_chunk_*.parquet')
     )
     print(f'Time taken to load in dataset: {round(time.time() - start, 2)} seconds')
 
     return cases_content
 
+
+# all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/interim')
+# print(all_cases)
+# casee = all_cases.loc[all_cases['identifier'] == 'ECLI:NL:PHR:2006:AY7459', ].values
+#
+# print(f'Case summary: {casee[0][1]}\n\nCase Text: {casee[0][2]}')

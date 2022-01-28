@@ -13,7 +13,7 @@ pd.options.display.width = None
 def main():
     """View Open Rechtspraak dataset with pandas."""
     # Load the raw dataset
-    all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/raw')
+    all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/interim')
     print(all_cases)
 
     # # Get a sample of the dataset and save the sample as csv
