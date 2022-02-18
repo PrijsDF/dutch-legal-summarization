@@ -36,8 +36,8 @@ bert_model = BertForNextSentencePrediction.from_pretrained('bert-base-multilingu
 tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
 
 # Load LDA model and the corresponding dictionary
-lda_model = LdaModel.load(str(MODELS_DIR / 'lda_model'))
-corpus_dictionary = corpora.Dictionary.load_from_text(str(MODELS_DIR / 'lda_dictionary'))
+lda_model = LdaModel.load(str(MODELS_DIR / 'lda_full_temp/lda_model'))
+corpus_dictionary = corpora.Dictionary.load_from_text(str(MODELS_DIR / 'lda_full_temp/lda_dictionary'))
 
 # Initialize ROUGE, to be used in the redundancy computation
 rouge = Rouge()
@@ -68,24 +68,27 @@ def main():
     }
     cases_dict_list = [{**case, **features_dict} for case in cases_dict_list]
 
-    # Now, optionally, load in a previous check-point containing the cases and features that are already computed
-    cases_checkpoint_df = pd.read_csv(DATA_DIR / 'open_data_uitspraken/features/descriptive.csv')
-    cases_checkpoint_dict_list = cases_checkpoint_df.to_dict('records')
+    # Make this var true, to load in a previous checkpoint. This can only be done after running it at least once
+    checkpoint_exists = False
+    if checkpoint_exists:
+        # Now, optionally, load in a previous check-point containing the cases and features that are already computed
+        cases_checkpoint_df = pd.read_csv(DATA_DIR / 'open_data_uitspraken/features/descriptive.csv')
+        cases_checkpoint_dict_list = cases_checkpoint_df.to_dict('records')
 
-    # Provide feedback
-    print(f'Cases processed in checkpoint: {len(cases_checkpoint_dict_list)}. '
-          f'Cases to go: {len(all_cases) - len(cases_checkpoint_dict_list)}')
+        # Provide feedback
+        print(f'Cases processed in checkpoint: {len(cases_checkpoint_dict_list)}. '
+              f'Cases to go: {len(all_cases) - len(cases_checkpoint_dict_list)}')
 
-    # Combine the list with dicts of cases and the checkpoint list of dicts
-    for case in cases_checkpoint_dict_list:
-        # We match on this id
-        identifier = case['identifier']
+        # Combine the list with dicts of cases and the checkpoint list of dicts
+        for case in cases_checkpoint_dict_list:
+            # We match on this id
+            identifier = case['identifier']
 
-        # Find the index of the case
-        index = next((i for i, item in enumerate(cases_dict_list) if item["identifier"] == identifier), None)
+            # Find the index of the case
+            index = next((i for i, item in enumerate(cases_dict_list) if item["identifier"] == identifier), None)
 
-        # Change the values of the case in the complete list
-        cases_dict_list[index] = {**cases_dict_list[index], **case}
+            # Change the values of the case in the complete list
+            cases_dict_list[index] = {**cases_dict_list[index], **case}
 
     # Now for each case we want to compute each of the features for all cases that haven't been done yet
     start = time.time()

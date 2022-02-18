@@ -13,15 +13,16 @@ pd.options.display.width = None
 def main():
     """View Open Rechtspraak dataset with pandas."""
     # Load the raw dataset
-    all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/raw')
+    all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/raw'
+                             , columns=['identifier', 'missing_parts', 'description', 'summary'])
 
     # Create interim dataset (only containing completete, viable cases)
     create_interim_dataset(all_cases, save_dir=DATA_DIR / 'open_data_uitspraken/interim')
 
 
-def create_interim_dataset(df, save_dir, chunks=4):
+def create_interim_dataset(df, save_dir, chunks=6):
     """In the interim dataset, only those cases are included that contain both a case description and a summary, and
-    the summary has to be at least 10 words."""
+    the summary has to contain at least 10 words. Note; we use 6 chunks, 4 gives a SIGKILL error with exit code 137."""
     mask = (df['missing_parts'] == 'none') \
         & (df['summary'] != '-') \
         & (df['summary'].str.split().str.len() >= 10)
@@ -39,7 +40,7 @@ def create_interim_dataset(df, save_dir, chunks=4):
         else:
             chunk_cases = df[chunk*cases_per_chunk:(chunk+1)*cases_per_chunk]
 
-        chunk_cases. to_parquet(save_dir / f'viable_cases_chunk_{chunk+1}.parquet', compression='brotli')
+        chunk_cases.to_parquet(save_dir / f'viable_cases_chunk_{chunk+1}.parquet', compression='brotli')
         print(f'Saved Chunk {chunk+1}.')
 
     del df

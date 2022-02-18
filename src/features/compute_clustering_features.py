@@ -39,7 +39,7 @@ rouge = Rouge()
 
 
 def main():
-    """Currently this file practically is a adjusted copy of the 'rechtspraak_compute_features.py' file. Here,
+    """Currently this file practically is an adjusted copy of the 'rechtspraak_compute_features.py' file. Here,
     we compute features derived from Bommasani and Cardie (2020) using the cases' texts. These features, later, will be
     used for clustering of cases."""
     # Load the interim dataset
@@ -60,24 +60,27 @@ def main():
     }
     cases_dict_list = [{**case, **features_dict} for case in cases_dict_list]
 
-    # Now, optionally, load in a previous check-point containing the cases and features that are already computed
-    cases_checkpoint_df = pd.read_csv(DATA_DIR / 'open_data_uitspraken/features/descriptive.csv')
-    cases_checkpoint_dict_list = cases_checkpoint_df.to_dict('records')
+    # Make this var true, to load in a previous checkpoint. This can only be done after running it at least once
+    checkpoint_exists = False
+    if checkpoint_exists:
+        # Now, optionally, load in a previous check-point containing the cases and features that are already computed
+        cases_checkpoint_df = pd.read_csv(DATA_DIR / 'open_data_uitspraken/features/descriptive.csv')
+        cases_checkpoint_dict_list = cases_checkpoint_df.to_dict('records')
 
-    # Provide feedback
-    print(f'Cases processed in checkpoint: {len(cases_checkpoint_dict_list)}. '
-          f'Cases to go: {len(all_cases) - len(cases_checkpoint_dict_list)}')
+        # Provide feedback
+        print(f'Cases processed in checkpoint: {len(cases_checkpoint_dict_list)}. '
+              f'Cases to go: {len(all_cases) - len(cases_checkpoint_dict_list)}')
 
-    # Combine the list with dicts of cases and the checkpoint list of dicts
-    for case in cases_checkpoint_dict_list:
-        # We match on this id
-        identifier = case['identifier']
+        # Combine the list with dicts of cases and the checkpoint list of dicts
+        for case in cases_checkpoint_dict_list:
+            # We match on this id
+            identifier = case['identifier']
 
-        # Find the index of the case
-        index = next((i for i, item in enumerate(cases_dict_list) if item["identifier"] == identifier), None)
+            # Find the index of the case
+            index = next((i for i, item in enumerate(cases_dict_list) if item["identifier"] == identifier), None)
 
-        # Change the values of the case in the complete list
-        cases_dict_list[index] = {**cases_dict_list[index], **case}
+            # Change the values of the case in the complete list
+            cases_dict_list[index] = {**cases_dict_list[index], **case}
 
     # for c in cases_dict_list[:20]:
     #     del c['summary']
@@ -110,23 +113,33 @@ def main():
             text_doc = nlp(cases_dict_list[i]['description'])
 
             # 3 Compute the simple features + word_compression and sentence_compression
+            #start = time.time()
             simple_features = compute_simple_features(text_doc)
+            #print(f'Simple features took {round(time.time() - start,2)} seconds')
 
             # Combine the computed simple features and the cases' components
             cases_dict_list[i] = {**cases_dict_list[i], **simple_features}
 
             # 4. Compute the biggest topic (class) of the text
+            #start = time.time()
             cases_dict_list[i]['topic_class'] = compute_topic_class(summary_doc, text_doc)
+            #print(f'Topic compute took {round(time.time() - start,2)} seconds')
 
             # 6. Compute Semantic Coherence
+            #start = time.time()
             cases_dict_list[i]['semantic_coherence'] = compute_semantic_coherence(text_doc)
+            #print(f'Semantic Coherence took {round(time.time() - start,2)} seconds')
 
             # 7. Compute Redundancy
+            #start = time.time()
             cases_dict_list[i]['redundancy'] = compute_redundancy(text_doc)
+            #print(f'Redundancy took {round(time.time() - start,2)} seconds')
 
             # Make case's text and summary None to boost further speed
             cases_dict_list[i]['summary'] = None
             cases_dict_list[i]['description'] = None
+
+            print(f'Finished iteration {i}')
 
     # print(cases_dict_list)
     print(f'Total time taken to compute metrics of dataset: {round(time.time() - start, 2)} seconds')
@@ -160,6 +173,7 @@ def tokenize_text(doc, rm_stop_words=False):
 
 def sentencize_text(doc):
     """Expects a spacy doc. Returns list containing the sentences as spacy Span containers (!)."""
+
     return [sent for sent in doc.sents]
 
 
@@ -225,7 +239,8 @@ def compute_semantic_coherence(summary_doc):
 
         # encode the two sequences. Particularly, make clear that they must be
         # encoded as "one" input to the model by using 'seq_B' as the 'text_pair'
-        encoded = tokenizer.encode_plus(sentence_a, text_pair=sentence_b, return_tensors='pt')
+        encoded = tokenizer.encode_plus(sentence_a, text_pair=sentence_b, return_tensors='pt'
+                                        , max_length=512, truncation=True)
         # print(encoded)
         # for ids in encoded["input_ids"]:
         #    print(tokenizer.decode(ids))

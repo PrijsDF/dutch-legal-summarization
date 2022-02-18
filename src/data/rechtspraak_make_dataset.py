@@ -1,6 +1,7 @@
 import logging
 import time
 from pathlib import Path
+import random
 
 from zipfile import ZipFile
 import pandas as pd
@@ -36,7 +37,7 @@ def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=Fal
     years.remove(1912)
 
     # When using a custom range, specify it here
-    # years = list(range(2000, 2001))
+    years = list(range(2020, 2021))
     # years.remove(1912)
 
     # Get month archives of each year; we will loop over these
@@ -61,7 +62,7 @@ def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=Fal
         pbar.set_description(f'Processing month {month} of {year}')
 
         # Parse all cases in month archive
-        cases_content_df = process_month_archive(month_archive)
+        cases_content_df = process_month_archive(year, month, month_archive)
         #print(len(cases_content_df))
 
         # Save the extracted archive's cases to a parquet
@@ -81,12 +82,13 @@ def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=Fal
         create_final_dataset(cases_dir, number_of_chunks)
 
 
-def process_month_archive(month_archive):
+def process_month_archive(year, month, month_archive):
     """ Processes each XML file (i.e. legal case) in the month archive, returning a df with the content of these cases.
     """
     # Store all cases of current archive in these dfs
     cases_content_df = pd.DataFrame(columns=[
-        'identifier', 'missing_parts', 'case_type', 'case_number', 'jurisdiction', 'creator', 'judgment_date',
+        'identifier', 'year', 'month', 'missing_parts', 'case_type', 'case_number', 'jurisdiction', 'creator', 'judgment_date',
+        # 'identifier', 'missing_parts', 'case_type', 'case_number', 'jurisdiction', 'creator', 'judgment_date',
         'relation', 'procedures', 'seat_location', 'references', 'publisher', 'issue_date', 'modified',
         'summary', 'description',  # 'language', # 'format'
     ])
@@ -95,10 +97,18 @@ def process_month_archive(month_archive):
     archive = ZipFile(month_archive, 'r')
     cases_archive = archive.namelist()
 
+    one_print_temp = False  # used for debugging
     for legal_case in cases_archive:
         # Read the content of the zip file (XML) into bf4 parser
         case_content = parse_xml(archive.read(legal_case))
 
+        # Before appending we want to add the year and month of the case to case_content
+        case_content['year'] = year  # also include 'year' in the df declaration above + give it as param to this func
+        case_content['month'] = month
+
+        if one_print_temp:
+            one_print_temp = False
+            print(case_content)
         # Append to df
         cases_content_df = cases_content_df.append(case_content, ignore_index=True)
 
@@ -113,8 +123,9 @@ def create_final_dataset(data_dir, number_of_chunks):
     print('Merging the individual parquet files...')
     logging.info('Merging the individual parquet files...')
 
-    # Read in the individual parquets
+    # List the individual parquets. We shuffle the months' cases to get a more evenly distributed dataset
     all_parquets = list(data_dir.glob('cases_content_*.parquet'))
+    random.shuffle(all_parquets)
 
     total_size = sum([p.stat().st_size for p in all_parquets])
     cumulative = 0
