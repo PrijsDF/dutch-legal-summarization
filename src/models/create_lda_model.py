@@ -34,32 +34,14 @@ def main():
     """View Open Rechtspraak dataset with pandas."""
     # Load the raw dataset
     all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/interim', use_dask=True)
+    # print(f'Number of cases in interim dataset {len(all_cases)}')
     # print(all_cases)
 
     # Drop the unneeded columns
     all_cases = all_cases.drop(columns=['identifier', 'summary'])
 
-    create_lda_model_dask(all_cases, save_path=MODELS_DIR / 'lda_full_temp')
-
-    # # Delete the summary column as we don't need it
-    # all_cases = all_cases.drop(columns=['summary'])
-    # print(f'Size of dataset as df: {round(sys.getsizeof(all_cases) / 1024, 2)} kb')
-    # # Convert the pandas df to a list of dicts for more efficient processing
-    # cases_dict_list = all_cases.to_dict('records')
-    #
-    # # Temp; testing with batches
-    # # print(len(cases_dict_list))
-    # cases_dict_list = cases_dict_list
-    # # print(len(cases_dict_list))
-    #
-    # del all_cases
-    #
-    # # 1. Remove all |'s that were added during data collection
-    # remove_pipes(cases_dict_list)
-    #
-    # # Create LDA model and save it in reports
-    # print(f'starting LDA using {len(cases_dict_list)} cases.')
-    # create_lda_model(cases_dict_list, save_path=MODELS_DIR / 'lda_full/lda_model')
+    # Create LDA model and save it
+    create_lda_model_dask(all_cases, save_path=MODELS_DIR / 'lda_full')
 
 
 def remove_pipes(list_of_dicts):
@@ -131,7 +113,7 @@ def create_lda_model_dask(dataset, save_path):
 
     # Now we will iterate over the other partitions and incrementally extend the LDA model
     batches = batch_partitions.npartitions
-    for i in range(2):#batches):
+    for i in range(batches):
         # We follow the same steps as for the base partition above
         batch_cases = batch_partitions.partitions[i].compute().to_dict('records')
         processed_texts = remove_pipes(batch_cases)

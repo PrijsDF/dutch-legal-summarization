@@ -1,15 +1,18 @@
 import time
+from collections import Counter
 
 import pandas as pd
 import spacy
 from gensim.models import LdaModel
 import gensim.corpora as corpora
 from rouge import Rouge
-from scipy.spatial import distance
 from torch.nn.functional import softmax
+from scipy.spatial import distance
+import transformers
 from transformers import BertForNextSentencePrediction, BertTokenizer
+from tqdm import tqdm
 
-from src.utils import DATA_DIR, MODELS_DIR, load_dataset
+from src.utils import DATA_DIR, MODELS_DIR, REPORTS_DIR, load_dataset
 
 # Some pandas options that allow to view all collumns and rows at once
 pd.set_option('display.max_columns', 500)
@@ -31,24 +34,25 @@ nlp = spacy.load("nl_core_news_sm", exclude=[
 nlp.add_pipe('sentencizer')  # Because we removed the parser, we need to manualy add sentencizer back
 nlp.max_length = 1500000  # Otherwise the limit will be 1000000 which is too little
 
+# Load LDA model and the corresponding dictionary
+lda_model = LdaModel.load(str(MODELS_DIR / 'lda_full/lda_model'))
+corpus_dictionary = corpora.Dictionary.load_from_text(str(MODELS_DIR / 'lda_full/lda_dictionary'))
+
 # load pretrained mBERT and a pretrained tokenizer for Semantic Coherence prediction
 bert_model = BertForNextSentencePrediction.from_pretrained('bert-base-multilingual-cased')
 tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
 
-# Load LDA model and the corresponding dictionary
-lda_model = LdaModel.load(str(MODELS_DIR / 'lda_full_temp/lda_model'))
-corpus_dictionary = corpora.Dictionary.load_from_text(str(MODELS_DIR / 'lda_full_temp/lda_dictionary'))
+# Hide the red warnings that are often printed for transformers library
+transformers.logging.set_verbosity_error()
 
 # Initialize ROUGE, to be used in the redundancy computation
 rouge = Rouge()
 
 
-def main():
+def main(save_file_name='descriptive_features_full_1024'):
     """Compute all features of the dataset following Bommasani and Cardie (2020). I will use these to compare the
     dataset to existing benchmarks for summarization. These authors also published code containing computations of
-    these features. I didn't follow their implementation.
-
-    https://stackoverflow.com/a/56746204; herschrijven om list te gebruiken en niet pandas append."""
+    these features. I didn't follow their implementation."""
     # Load the interim dataset
     all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/interim')
 
@@ -56,7 +60,7 @@ def main():
     cases_dict_list = all_cases.to_dict('records')
 
     # 1. Remove all |'s that were added during data collection
-    cases_dict_list = remove_pipes(cases_dict_list)
+    # cases_dict_list = remove_pipes(cases_dict_list)
 
     # 2. Add placeholders to the cases list's dicts for each of the features (4 simple features and 6 complex features)
     # This will hold all the cases' feature values; only at the end, we will convert this into a df
@@ -68,94 +72,51 @@ def main():
     }
     cases_dict_list = [{**case, **features_dict} for case in cases_dict_list]
 
-    # Make this var true, to load in a previous checkpoint. This can only be done after running it at least once
-    checkpoint_exists = False
-    if checkpoint_exists:
-        # Now, optionally, load in a previous check-point containing the cases and features that are already computed
-        cases_checkpoint_df = pd.read_csv(DATA_DIR / 'open_data_uitspraken/features/descriptive.csv')
-        cases_checkpoint_dict_list = cases_checkpoint_df.to_dict('records')
-
-        # Provide feedback
-        print(f'Cases processed in checkpoint: {len(cases_checkpoint_dict_list)}. '
-              f'Cases to go: {len(all_cases) - len(cases_checkpoint_dict_list)}')
-
-        # Combine the list with dicts of cases and the checkpoint list of dicts
-        for case in cases_checkpoint_dict_list:
-            # We match on this id
-            identifier = case['identifier']
-
-            # Find the index of the case
-            index = next((i for i, item in enumerate(cases_dict_list) if item["identifier"] == identifier), None)
-
-            # Change the values of the case in the complete list
-            cases_dict_list[index] = {**cases_dict_list[index], **case}
-
     # Now for each case we want to compute each of the features for all cases that haven't been done yet
-    start = time.time()
-    for i in range(len(cases_dict_list)):
-        # Only do something if the cases has not been handled in the checkpoint yet
-        if cases_dict_list[i]['topic_similarity'] == -1:
-            # Check time and save checkpoint
-            if i % 100 == 0 and i > 0:
-                print(f'{len(cases_dict_list) - (i + 1)} cases left. '
-                      f'Time elapsed since start: {round((time.time() - start) / 60, 4)} minutes')
+    for i in tqdm(range(len(cases_dict_list)), desc="Computing Bommasani features"):
+        # Create the spacy documents; these can be used to tokenize and sentencize the text
+        summary_doc = nlp(cases_dict_list[i]['summary'])
+        text_doc = nlp(cases_dict_list[i]['description'])
 
-                # Make a pd df from the cases that we derived features for
-                df_from_dict = pd.DataFrame.from_records([case for case in cases_dict_list
-                                                          if case['topic_similarity'] != -1],
-                                                         exclude=['summary', 'description'])
+        # 3 Compute the simple features + word_compression and sentence_compression
+        simple_features = compute_simple_features(summary_doc, text_doc)
 
-                # Save the checkpoint
-                df_from_dict.to_csv(DATA_DIR / 'open_data_uitspraken/features/descriptive.csv', index=False)
+        # Combine the computed simple features and the cases' components
+        cases_dict_list[i] = {**cases_dict_list[i], **simple_features}
 
-                # print(df_from_dict)
+        # 4. Compute Topic Similarity
+        cases_dict_list[i]['topic_similarity'] = compute_topic_similarity(summary_doc, text_doc)
 
-            # Create the spacy documents; these can be used to tokenize and sentencize the text
-            summary_doc = nlp(cases_dict_list[i]['summary'])
-            text_doc = nlp(cases_dict_list[i]['description'])
+        # 5. Compute Abstractivity
+        cases_dict_list[i]['abstractivity'] = compute_abstractivity(summary_doc, text_doc)
 
-            # 3 Compute the simple features + word_compression and sentence_compression
-            #start1 = time.time()
-            simple_features = compute_simple_features(summary_doc, text_doc)
-            #print(f'Simple features time: {round((time.time() - start1), 4)} minutes')
+        # 6. Compute Semantic Coherence
+        cases_dict_list[i]['semantic_coherence'] = compute_semantic_coherence(summary_doc)
 
-            # Combine the computed simple features and the cases' components
-            cases_dict_list[i] = {**cases_dict_list[i], **simple_features}
+        # 7. Compute Redundancy
+        cases_dict_list[i]['redundancy'] = compute_redundancy(summary_doc)
 
-            # 4. Compute Topic Similarity
-            #start2 = time.time()
-            cases_dict_list[i]['topic_similarity'] = compute_topic_similarity(summary_doc, text_doc)
-            #print(f'Topic Similarity time: {round((time.time() - start2), 4)} minutes')
-
-            # 5. Compute Abstractivity
-            #start3 = time.time()
-            cases_dict_list[i]['abstractivity'] = compute_abstractivity(summary_doc, text_doc)
-            #print(f'Abstractivity time: {round((time.time() - start3), 4)} minutes')
-
-            # 6. Compute Semantic Coherence
-            #start4 = time.time()
-            cases_dict_list[i]['semantic_coherence'] = compute_semantic_coherence(summary_doc)
-            #print(f'Semantic Coherence time: {round((time.time() - start4), 4)} minutes')
-
-            # 7. Compute Redundancy
-            #start5 = time.time()
-            cases_dict_list[i]['redundancy'] = compute_redundancy(summary_doc)
-            #print(f'Redundancy time: {round((time.time() - start5), 4)} minutes')
-
-            # Make case's text and summary None to boost further speed
-            cases_dict_list[i]['summary'] = 1
-            cases_dict_list[i]['description'] = 1
-
-    # print(cases_dict_list)
-    print(f'Total time taken to compute metrics of dataset: {round(time.time() - start, 2)} seconds')
+        # Make case's text and summary None to boost further speed (?)
+        cases_dict_list[i]['summary'] = None
+        cases_dict_list[i]['description'] = None
 
     # 9. Average the computed features for the whole dataset
     # agg_cases_features = create_agg_df(REPORTS_DIR / 'dataset_metrics.csv')
     # print(agg_cases_features)
 
+    # Save the final obtained df
+    # Make a pd df from the cases that we derived features for
+    df_from_dict = pd.DataFrame.from_records(
+        [case for case in cases_dict_list if case['topic_similarity'] != -1],
+        exclude=['summary', 'description']
+    )
+
+    # Save the features
+    df_from_dict.to_csv(REPORTS_DIR / f'{save_file_name}.csv', index=False)
+
 
 def remove_pipes(list_of_dicts):
-    """The prior-added pipes (|) will be filtered out."""
+    """The prior-added pipes (|) will be filtered out. Deprecated!"""
     for i in range(len(list_of_dicts)):
         list_of_dicts[i]['summary'] = list_of_dicts[i]['summary'].replace("|", " ")
         list_of_dicts[i]['description'] = list_of_dicts[i]['description'].replace("|", " ")
@@ -315,12 +276,6 @@ def compute_abstractivity(summary_doc, text_doc):
 def compute_semantic_coherence(summary_doc):
     """Compute the semantic coherence score by averaging the BERT next sentence probability predicted for each adjacent
      pair of sentences. Code for next sentence probability computation from https://stackoverflow.com/a/60433070."""
-    # For some reason using two sentences gives less UNK tokens than using two lists of tokens...
-    # tseq_A = ['Hallo', 'hoe', 'gaat', 'het']
-    # tseq_B = ['Goed', 'hoor']
-    # seq_A = 'Hallo hoe gaat het'
-    # seq_B = 'Goed hoor'
-
     summary_sents = sentencize_text(summary_doc)
 
     # Loop over the sentence pairs and compute the probabilities, then add the proportional score to the sc_probability
@@ -331,10 +286,8 @@ def compute_semantic_coherence(summary_doc):
 
         # encode the two sequences. Particularly, make clear that they must be
         # encoded as "one" input to the model by using 'seq_B' as the 'text_pair'
-        encoded = tokenizer.encode_plus(sentence_a, text_pair=sentence_b, return_tensors='pt')
-        # print(encoded)
-        # for ids in encoded["input_ids"]:
-        #    print(tokenizer.decode(ids))
+        encoded = tokenizer.encode_plus(sentence_a, text_pair=sentence_b, return_tensors='pt'
+                                        , max_length=512, truncation=True)
 
         # a model's output is a tuple, we only need the output tensor containing
         # the relationships which is the first item in the tuple
@@ -361,35 +314,44 @@ def compute_semantic_coherence(summary_doc):
 
 
 def compute_redundancy(summary_doc):
-    """Measure redundancy by computing the ROUGE-L F-Score for each pair of distinct sentences in the summary."""
+    """Measure redundancy by computing the ROUGE-L F-Score for each pair of distinct sentences in the summary.
+
+    Bommasani code for this function is found here:
+    https://github.com/rishibommasani/SummarizationEvaluation/blob/master/process_eval.py ). Also, the authors seem
+    to take the max() of the list of rouge scores for each combination of sentences of a summary. This is in conflict
+    with what they write in the paper, namely that the average is taken over all sentences..."""
     # First, sentencize the document
     summary_sents = sentencize_text(summary_doc)
 
-    # If there are no found sentences, give the redundancy a score of 999 for post-processing
-    if len(summary_sents) > 0:
-        # Iterate over all sentence pairs that are not identical and add the computed ROUGE-L score for the pair to the
-        # total redundancy score. Then, average by dividing with the number of combinations that we checked
-        redundancy = 0
-        total_combinations_done = 0
-        for sen_a in summary_sents:
-            for sen_b in summary_sents:
-                if sen_a.text != sen_b.text:
-                    total_combinations_done += 1
+    # There is at least one case with a sentence consisting of only one dot. Not sure why spacy handled it this way.
+    # However, the rouge package splits on these dots for some reason; hereby creating an empty list and therefore
+    # an empty 'hypothesis'. Thus we filter this dot-case out and make its redundancy 999 for post-processing
+    if len([a for a in summary_sents if a.text.strip() == '.']) > 0:
+        redundancy = 999
+    else:
+        # If there are no found sentences (shouldnt happen), give the redundancy a score of 999 for post-processing
+        if len(summary_sents) == 0:
+            redundancy = 999
+        # 1 sentence means that the summary is definitely not redundant
+        elif len(summary_sents) == 1:
+            redundancy = 0
+        # Only with more than 1 sentence, we will start compare sentence pairs
+        else:
+            # Iterate over all sentence pairs that are not identical and add the computed ROUGE-L score for the pair to
+            # the list of rouge scores score. Then, average by dividing with the number of combinations that we checked
+            rouge_l_fscores = []
+
+            for i in range(len(summary_sents)):
+                # We only want to compare each pair once
+                for j in range(i+1, len(summary_sents)):
 
                     # Compute the rouge scores
-                    rouge_scores = rouge.get_scores(sen_a.text, sen_b.text)
+                    rouge_scores = rouge.get_scores(summary_sents[i].text, summary_sents[j].text)
                     rouge_l_fscore = rouge_scores[0]['rouge-l']['f']
 
-                    redundancy += rouge_l_fscore
+                    rouge_l_fscores.append(rouge_l_fscore)
 
-        # Take the mean of the total redundancy; if there were no sent combinations then give a redundancy of 0
-        if total_combinations_done > 0:
-            redundancy = round(redundancy / total_combinations_done, 4)
-        else:
-            redundancy = 0
-        # print(f'Total sent combinations:{total_combinations_done}, Found redundancy: {redundancy}')
-    else:
-        redundancy = 999
+            redundancy = round(sum(rouge_l_fscores) / len(rouge_l_fscores), 4)
 
     return redundancy
 

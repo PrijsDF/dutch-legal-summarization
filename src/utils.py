@@ -12,6 +12,7 @@ REPORTS_DIR = ROOT_DIR / 'reports'
 LOG_DIR = ROOT_DIR / 'reports/logs'
 
 
+# This name will give a conflict if used in HF datasets scripts; as they also called their function this way
 def load_dataset(data_dir, use_dask=False, columns=None):
     """ Read all data and combine these in a single df."""
     start = time.time()
@@ -39,6 +40,21 @@ def load_dataset(data_dir, use_dask=False, columns=None):
     return cases_content
 
 
+# test = '. Aanvraag niet gedaan door een belanghebbende. daarom geen aanvraag in de zin van de Awb. Verweerder was ' \
+#        'daarom niet gehouden om een besluit te nemen. Niet voldaan aan de voorwaarden voor het instellen van beroep ' \
+#        'NT. '
+
+# print(test.strip()[1:].strip())
+# print(test)
+#
+# all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/interim')
+#
+# a = all_cases[all_cases['summary'].str.startswith('. ')]['summary']
+# print(a)
+# b = all_cases.iloc[[43508]]['summary']
+# print(b)
+#
+# print(all_cases.iloc[2903])
 #all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/interim', columns=['identifier', 'summary'])
 #print(all_cases)
 #print(f'Size of dataset as df: {round(sys.getsizeof(all_cases) / 1024 / 1024, 2)} mb')

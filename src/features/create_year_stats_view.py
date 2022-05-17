@@ -9,7 +9,7 @@ from src.utils import DATA_DIR, REPORTS_DIR, load_dataset
 
 def main():
     """Create a df with some counts on viable cases in the raw dataset."""
-    # Load the features csv; this csv was created in the rechtspraak_compute_features.py file
+    # Load the features csv; this csv was created in the compute_bommasani_features.py file
     decade_counts_df = create_year_counts_df(DATA_DIR / 'open_data_uitspraken/raw')
     print(decade_counts_df)
 

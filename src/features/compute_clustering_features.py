@@ -1,4 +1,5 @@
 import time
+from collections import Counter
 
 import pandas as pd
 import spacy
@@ -6,7 +7,9 @@ from gensim.models import LdaModel
 import gensim.corpora as corpora
 from rouge import Rouge
 from torch.nn.functional import softmax
+import transformers
 from transformers import BertForNextSentencePrediction, BertTokenizer
+from tqdm import tqdm
 
 from src.utils import DATA_DIR, MODELS_DIR, load_dataset
 
@@ -30,18 +33,25 @@ nlp = spacy.load("nl_core_news_sm", exclude=[
 nlp.add_pipe('sentencizer')  # Because we removed the parser, we need to manualy add sentencizer back
 nlp.max_length = 1500000  # Otherwise the limit will be 1000000 which is too little
 
+# Load LDA model and the corresponding dictionary
+lda_model = LdaModel.load(str(MODELS_DIR / 'lda_full/lda_model'))
+corpus_dictionary = corpora.Dictionary.load_from_text(str(MODELS_DIR / 'lda_full/lda_dictionary'))
+
 # load pretrained mBERT and a pretrained tokenizer for Semantic Coherence prediction
 bert_model = BertForNextSentencePrediction.from_pretrained('bert-base-multilingual-cased')
 tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
+
+# Hide the red warnings that are often printed for transformers library
+transformers.logging.set_verbosity_error()
 
 # Initialize ROUGE, to be used in the redundancy computation
 rouge = Rouge()
 
 
-def main():
-    """Currently this file practically is an adjusted copy of the 'rechtspraak_compute_features.py' file. Here,
-    we compute features derived from Bommasani and Cardie (2020) using the cases' texts. These features, later, will be
-    used for clustering of cases."""
+def main(save_file_name='clustering_features_full_1024'):
+    """This file practically is an adjusted copy of the 'compute_bommasani_features.py' file. Here, we compute features
+    derived from Bommasani and Cardie (2020) using the cases' texts. These features, later, will be used for clustering
+    of cases. Some features were omitted because they either depend on the summary, or are too expensive to compute."""
     # Load the interim dataset
     all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/interim')
 
@@ -49,7 +59,7 @@ def main():
     cases_dict_list = all_cases.to_dict('records')
 
     # 1. Remove all |'s that were added during data collection
-    cases_dict_list = remove_pipes(cases_dict_list)
+    # cases_dict_list = remove_pipes(cases_dict_list)
 
     # 2. Add placeholders to the cases list's dicts for each of the features (4 simple features and 6 complex features)
     # This will hold all the cases' feature values; only at the end, we will convert this into a df
@@ -60,97 +70,44 @@ def main():
     }
     cases_dict_list = [{**case, **features_dict} for case in cases_dict_list]
 
-    # Make this var true, to load in a previous checkpoint. This can only be done after running it at least once
-    checkpoint_exists = False
-    if checkpoint_exists:
-        # Now, optionally, load in a previous check-point containing the cases and features that are already computed
-        cases_checkpoint_df = pd.read_csv(DATA_DIR / 'open_data_uitspraken/features/descriptive.csv')
-        cases_checkpoint_dict_list = cases_checkpoint_df.to_dict('records')
-
-        # Provide feedback
-        print(f'Cases processed in checkpoint: {len(cases_checkpoint_dict_list)}. '
-              f'Cases to go: {len(all_cases) - len(cases_checkpoint_dict_list)}')
-
-        # Combine the list with dicts of cases and the checkpoint list of dicts
-        for case in cases_checkpoint_dict_list:
-            # We match on this id
-            identifier = case['identifier']
-
-            # Find the index of the case
-            index = next((i for i, item in enumerate(cases_dict_list) if item["identifier"] == identifier), None)
-
-            # Change the values of the case in the complete list
-            cases_dict_list[index] = {**cases_dict_list[index], **case}
-
-    # for c in cases_dict_list[:20]:
-    #     del c['summary']
-    #     del c['description']
-    #
-    #     print(c)
-
     # Now for each case we want to compute each of the features for all cases that haven't been done yet
-    start = time.time()
-    for i in range(len(cases_dict_list)):
-        # Only do something if the cases has not been handled in the checkpoint yet
-        if cases_dict_list[i]['topic_class'] == -1:
-            # Check time and save checkpoint
-            if i % 100 == 0 and i > 0:
-                print(f'{len(cases_dict_list) - (i + 1)} cases left. '
-                      f'Time elapsed since start: {round((time.time() - start) / 60, 4)} minutes')
+    for i in tqdm(range(len(cases_dict_list))):
+        # Create the spacy documents; these can be used to tokenize and sentencize the text
+        # summary_doc = nlp(cases_dict_list[i]['summary'])
+        text_doc = nlp(cases_dict_list[i]['description'])
 
-                # Make a pd df from the cases that we derived features for
-                df_from_dict = pd.DataFrame.from_records([case for case in cases_dict_list
-                                                          if case['topic_class'] != -1],
-                                                         exclude=['summary', 'description'])
+        # 3 Compute the simple features + word_compression and sentence_compression
+        simple_features = compute_simple_features(text_doc)
 
-                # Save the checkpoint
-                df_from_dict.to_csv(DATA_DIR / 'open_data_uitspraken/features/descriptive.csv', index=False)
+        # Combine the computed simple features and the cases' components
+        cases_dict_list[i] = {**cases_dict_list[i], **simple_features}
 
-                # print(df_from_dict)
+        # 4. Compute the biggest topic (class) of the text
+        cases_dict_list[i]['topic_class'] = compute_topic_class(text_doc)
 
-            # Create the spacy documents; these can be used to tokenize and sentencize the text
-            summary_doc = nlp(cases_dict_list[i]['summary'])
-            text_doc = nlp(cases_dict_list[i]['description'])
+        # 6. Compute Semantic Coherence
+        cases_dict_list[i]['semantic_coherence'] = compute_semantic_coherence(text_doc)
 
-            # 3 Compute the simple features + word_compression and sentence_compression
-            #start = time.time()
-            simple_features = compute_simple_features(text_doc)
-            #print(f'Simple features took {round(time.time() - start,2)} seconds')
+        # 7. Compute Redundancy
+        cases_dict_list[i]['redundancy'] = compute_redundancy(text_doc)
 
-            # Combine the computed simple features and the cases' components
-            cases_dict_list[i] = {**cases_dict_list[i], **simple_features}
+        # Make case's text and summary None to boost further speed (?)
+        cases_dict_list[i]['summary'] = None
+        cases_dict_list[i]['description'] = None
 
-            # 4. Compute the biggest topic (class) of the text
-            #start = time.time()
-            cases_dict_list[i]['topic_class'] = compute_topic_class(summary_doc, text_doc)
-            #print(f'Topic compute took {round(time.time() - start,2)} seconds')
+    # Save the final obtained df
+    # Make a pd df from the cases that we derived features for
+    df_from_dict = pd.DataFrame.from_records(
+        [case for case in cases_dict_list if case['topic_class'] != -1],
+        exclude=['summary', 'description']
+    )
 
-            # 6. Compute Semantic Coherence
-            #start = time.time()
-            cases_dict_list[i]['semantic_coherence'] = compute_semantic_coherence(text_doc)
-            #print(f'Semantic Coherence took {round(time.time() - start,2)} seconds')
-
-            # 7. Compute Redundancy
-            #start = time.time()
-            cases_dict_list[i]['redundancy'] = compute_redundancy(text_doc)
-            #print(f'Redundancy took {round(time.time() - start,2)} seconds')
-
-            # Make case's text and summary None to boost further speed
-            cases_dict_list[i]['summary'] = None
-            cases_dict_list[i]['description'] = None
-
-            print(f'Finished iteration {i}')
-
-    # print(cases_dict_list)
-    print(f'Total time taken to compute metrics of dataset: {round(time.time() - start, 2)} seconds')
-
-    # 9. Average the computed features for the whole dataset
-    # agg_cases_features = create_agg_df(REPORTS_DIR / 'dataset_metrics.csv')
-    # print(agg_cases_features)
+    # Save the features
+    df_from_dict.to_csv(DATA_DIR / f'open_data_uitspraken/features/{save_file_name}.csv', index=False)
 
 
 def remove_pipes(list_of_dicts):
-    """The prior-added pipes (|) will be filtered out."""
+    """The prior-added pipes (|) will be filtered out. Deprecated!"""
     for i in range(len(list_of_dicts)):
         list_of_dicts[i]['summary'] = list_of_dicts[i]['summary'].replace("|", " ")
         list_of_dicts[i]['description'] = list_of_dicts[i]['description'].replace("|", " ")
@@ -173,7 +130,6 @@ def tokenize_text(doc, rm_stop_words=False):
 
 def sentencize_text(doc):
     """Expects a spacy doc. Returns list containing the sentences as spacy Span containers (!)."""
-
     return [sent for sent in doc.sents]
 
 
@@ -192,7 +148,7 @@ def compute_simple_features(text_doc):
     return simple_features
 
 
-def compute_topic_class(summary_doc, text_doc):
+def compute_topic_class(text_doc):
     """We compute the topic_class by queuring the LDA model that we learned earlier.
 
     First, we load the lda model that we generated in models/train_lda_model.py. Then, we use this model to
@@ -200,10 +156,6 @@ def compute_topic_class(summary_doc, text_doc):
 
     Importantly, the same preprocessing steps and stop word filters need to be applied here as to when the lda model
     was trained. I.e. we need to remove punctuation and make the texts lowercase."""
-    # Load LDA model and the corresponding dictionary
-    lda_model = LdaModel.load(str(MODELS_DIR / 'lda_model'))
-    corpus_dictionary = corpora.Dictionary.load_from_text(str(MODELS_DIR / 'lda_dictionary'))
-
     # Tokenize the two spacy docs; we exclude stop words
     text_tokenized = tokenize_text(text_doc, rm_stop_words=True)
 
@@ -220,30 +172,29 @@ def compute_topic_class(summary_doc, text_doc):
     return topic_class
 
 
-def compute_semantic_coherence(summary_doc):
+def compute_semantic_coherence(text_doc):
     """Compute the semantic coherence score by averaging the BERT next sentence probability predicted for each adjacent
-     pair of sentences. Code for next sentence probability computation from https://stackoverflow.com/a/60433070."""
-    # For some reason using two sentences gives less UNK tokens than using two lists of tokens...
-    # tseq_A = ['Hallo', 'hoe', 'gaat', 'het']
-    # tseq_B = ['Goed', 'hoor']
-    # seq_A = 'Hallo hoe gaat het'
-    # seq_B = 'Goed hoor'
+     pair of sentences. Code for next sentence probability computation from https://stackoverflow.com/a/60433070.
 
-    summary_sents = sentencize_text(summary_doc)
+     As it would take to long to include all sentences here, we only chose to look at the first 10 sentences of the
+     document."""
+    text_sents = sentencize_text(text_doc)
+    # print(f'Number of sents in this summary: {len(summary_sents)}')
+    # print(summary_sents[0])
+
+    # Using all sentences takes way too long; for now only take the top 10
+    text_sents = text_sents[:10]
 
     # Loop over the sentence pairs and compute the probabilities, then add the proportional score to the sc_probability
     sc_probability = 0
-    for i in range(len(summary_sents) - 1):
-        sentence_a = summary_sents[i].text
-        sentence_b = summary_sents[i+1].text
+    for i in range(len(text_sents) - 1):
+        sentence_a = text_sents[i].text
+        sentence_b = text_sents[i+1].text
 
         # encode the two sequences. Particularly, make clear that they must be
         # encoded as "one" input to the model by using 'seq_B' as the 'text_pair'
         encoded = tokenizer.encode_plus(sentence_a, text_pair=sentence_b, return_tensors='pt'
                                         , max_length=512, truncation=True)
-        # print(encoded)
-        # for ids in encoded["input_ids"]:
-        #    print(tokenizer.decode(ids))
 
         # a model's output is a tuple, we only need the output tensor containing
         # the relationships which is the first item in the tuple
@@ -260,7 +211,7 @@ def compute_semantic_coherence(summary_doc):
         # tensor([[9.9993e-01, 6.7607e-05]], grad_fn=<SoftmaxBackward>)
         # very high value for index 0: high probability of seq_B being a continuation of seq_A
 
-        sc_sent_probability = probs[0][0].item() / (len(summary_sents) - 1)
+        sc_sent_probability = probs[0][0].item() / (len(text_sents) - 1)
         # print(f'The probability that sequence B follows sequence A is: {sc_sent_probability}')
 
         sc_probability += sc_sent_probability
@@ -269,10 +220,33 @@ def compute_semantic_coherence(summary_doc):
     return round(sc_probability, 4)
 
 
-def compute_redundancy(summary_doc):
+def compute_redundancy(text_doc):
+    """We steer away from Bommasani here as computing their metric for the complete dataset would be too demanding.
+    Instead, we compute redundancy as the ratio between the number of unique tokens and the total number of tokens. To
+    this end, we first remove stop words."""
+    # First, tokenize the document
+    text_tokenized = tokenize_text(text_doc, rm_stop_words=True)
+    # print(f'Len of summary w/o stopwords: {len(text_tokenized)}')
+
+    # Find the unique tokens in the doc
+    unique_tokens = Counter(text_tokenized).keys()
+
+    # Sometimes the number of tokens apparently is 0 so we need this check. We want to postprocess to see why this is
+    # possible however as this shouldn't be possible
+    num_tokens = len(text_tokenized)
+    num_unique_tokens = len(unique_tokens)
+    if num_tokens > 0 and num_unique_tokens > 0:
+        redundancy = round(1 - num_unique_tokens / num_tokens, 4)
+    else:
+        redundancy = 999
+
+    return redundancy
+
+
+def compute_redundancy_old(text_doc):
     """Measure redundancy by computing the ROUGE-L F-Score for each pair of distinct sentences in the summary."""
     # First, sentencize the document
-    summary_sents = sentencize_text(summary_doc)
+    summary_sents = sentencize_text(text_doc)
 
     # If there are no found sentences, give the redundancy a score of 999 for post-processing
     if len(summary_sents) > 0:

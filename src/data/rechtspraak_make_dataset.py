@@ -12,18 +12,25 @@ from rechtspraak_parse_xml_functions import parse_xml
 from rechtspraak_compare_formats import compare_formats
 
 
-def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=False):
+def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=False, max_desc_length=1024):
     """ Runs data processing scripts to turn external data from (../external) into
         a raw dataset (saved in ../raw) that can be used as a starting point for creating the
         final dataset.
 
         If make_final_dataset is true, then, at the end of the generating process, all month archive data files will be
-        combined into number_of_chunks chunks. We recommend 2 chunks, as 1 (all data in a single file) likely will lead
+        combined into number_of_chunks chunks. We recommend 4 chunks, as 1 (all data in a single file) likely will lead
         to memory issues. Use make_format_comparison to compare four file formats for storing the data.
 
         In order to parse xml (in our way) with bs4, we need to install the library lxml. Also, for storage purposes
         we are using parquet; here, too, we need an external library to falicitate this functionality for Pandas. We
         chose to use pyarrow, albeit that fastparquet also would be a viable option.
+
+        Edit @20-04-22: I chose to only include cases with less than 1024 tokens in total. I hoped that I could filter
+        out all these cases from the raw dataset when creating the interim dataset; this lead to memory errors however.
+        Thats why I included this rule here as a main() parameter. Technically, however, the BART tokenizer should
+        be used to achieve this rule. This is because in the model a token is not equal to a word, but equal to a word
+        part. 1024 word tokens might very well mean 2000 tokens for the model during training. Make max_desc_length None
+        if no max_length is needed to be enforced.
     """
     # Start logging
     print('Making raw dataset from external Rechtspraak data...')
@@ -33,11 +40,11 @@ def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=Fal
     cases_dir = DATA_DIR / 'open_data_uitspraken/raw'
 
     # Specify years; 1912 does not exist
-    years = list(range(1911, 2022))
+    years = list(range(1911, 2023))
     years.remove(1912)
 
     # When using a custom range, specify it here
-    years = list(range(2020, 2021))
+    # years = list(range(2021, 2022))
     # years.remove(1912)
 
     # Get month archives of each year; we will loop over these
@@ -62,7 +69,7 @@ def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=Fal
         pbar.set_description(f'Processing month {month} of {year}')
 
         # Parse all cases in month archive
-        cases_content_df = process_month_archive(year, month, month_archive)
+        cases_content_df = process_month_archive(year, month, month_archive, max_desc_length)
         #print(len(cases_content_df))
 
         # Save the extracted archive's cases to a parquet
@@ -82,14 +89,13 @@ def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=Fal
         create_final_dataset(cases_dir, number_of_chunks)
 
 
-def process_month_archive(year, month, month_archive):
+def process_month_archive(year, month, month_archive, max_desc_length):
     """ Processes each XML file (i.e. legal case) in the month archive, returning a df with the content of these cases.
     """
     # Store all cases of current archive in these dfs
     cases_content_df = pd.DataFrame(columns=[
-        'identifier', 'year', 'month', 'missing_parts', 'case_type', 'case_number', 'jurisdiction', 'creator', 'judgment_date',
-        # 'identifier', 'missing_parts', 'case_type', 'case_number', 'jurisdiction', 'creator', 'judgment_date',
-        'relation', 'procedures', 'seat_location', 'references', 'publisher', 'issue_date', 'modified',
+        'identifier', 'year', 'month', 'missing_parts', 'case_type', 'case_number', 'jurisdiction', 'creator',
+        'judgment_date', 'relation', 'procedures', 'seat_location', 'references', 'publisher', 'issue_date', 'modified',
         'summary', 'description',  # 'language', # 'format'
     ])
 
@@ -109,15 +115,23 @@ def process_month_archive(year, month, month_archive):
         if one_print_temp:
             one_print_temp = False
             print(case_content)
-        # Append to df
-        cases_content_df = cases_content_df.append(case_content, ignore_index=True)
+
+        # Append to df; but only if the desc length is not > max_desc_length (if this param was set)
+        if max_desc_length:
+            if len(case_content['description'].split()) <= max_desc_length:
+                cases_content_df = cases_content_df.append(case_content, ignore_index=True)
+            else:
+                pass  # In this case the description has more than 1024 tokens and violates the max_length of the model
+        else:  # max_desc_length == None
+            cases_content_df = cases_content_df.append(case_content, ignore_index=True)
 
     return cases_content_df
 
 
 def create_final_dataset(data_dir, number_of_chunks):
     """ Combines all individual snappy parquet files into two final chunks that will constitute the complete dataset.
-    These chunks then are saved as two parquet files using brotli compression, reducing file size as much as possible.
+    These chunks then are saved as number_of_chunks parquet files using brotli compression, reducing file size as
+    much as possible.
     """
     start_create_final = time.time()
     print('Merging the individual parquet files...')

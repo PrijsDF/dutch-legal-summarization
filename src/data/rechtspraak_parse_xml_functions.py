@@ -5,6 +5,10 @@ from datetime import datetime
 def parse_xml(file_name):
     """ Using bs4, the case document is parsed. Three parts are extracted: the rdf; containing mostly meta-information,
     the case summary, and the case description. Returns a dictionary of all relevant pieces of information of the case.
+
+    Edit @20-04-22: with get_text(), when getting the summary and description, a seperator can be provided for each of
+    the text segments that will be extracted. Before, this I used a '|' character; but I might as well just give it a
+    whitespace, which I just did.
     """
     # Passing the stored data inside the beautifulsoup parser
     file_xml = BeautifulSoup(file_name, 'xml')
@@ -26,14 +30,14 @@ def parse_xml(file_name):
 
     # Extract the summary text
     if case_summary is not None:
-        case_content['summary'] = case_summary.get_text('|', strip=True)
+        case_content['summary'] = case_summary.get_text(separator=' ', strip=True)
     else:
         case_content['summary'] = 'none'
         missing = missing + ('summary',)
 
     # Extract the description text
     if case_description is not None:
-        case_content['description'] = case_description.get_text('|', strip=True)
+        case_content['description'] = case_description.get_text(separator=' ', strip=True)
     else:
         case_content['description'] = 'none'
         missing = missing + ('description',)
