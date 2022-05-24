@@ -6,6 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.cluster import KMeans
+import yellowbrick
 from yellowbrick.cluster import KElbowVisualizer
 
 from src.utils import DATA_DIR, REPORTS_DIR, MODELS_DIR, load_dataset
@@ -37,9 +38,13 @@ plt.rc('ytick', labelsize=small_size)    # fontsize of the tick labels
 plt.rc('legend', fontsize=14)    # legend fontsize
 plt.rc('figure', titlesize=big_size)     # fontsize of the figure title
 
+plt.rc('patch', edgecolor='black')  # otherwise the elbow plot is printed with grey border
+plt.rc('patch', linewidth='1')
+#yellowbrick.style.rcmod.set_style(style='white')  # otherwise the elbow plot is printed in seaborn
+
 
 def main():
-    """ We will learn a k-means model that, later, can be used to cluster cases on.
+    """ We will learn a k-means model that can be used to cluster cases on later.
     """
     # Load the dataset and remove the irrelevant columns
     data = pd.read_csv(DATA_DIR / 'open_data_uitspraken/features/clustering_features_full_1024.csv')
@@ -49,7 +54,7 @@ def main():
     # plot_two_cols(data, x_col='topic_class', y_col='desc_sents')
 
     # Find suitable number of clusters using elbow method first
-    # learn_k_means_elbow(data)
+    # learn_k_means_elbow(data, save_figure=False)
 
     # Learn Gaussian mixture model now we know the number of components
     save_mapping_path = REPORTS_DIR / 'ecli_cluster_mapping.csv'
@@ -57,7 +62,7 @@ def main():
     clustered_cases = learn_k_means(data, n_clusters=6, save_mapping=False, save_mapping_path=save_mapping_path
                                     , save_model=False, save_model_path=save_model_path)
 
-    #print(clustered_cases)
+    print(clustered_cases)
 
 
 def plot_two_cols(data, x_col='desc_words', y_col='desc_words'):
@@ -115,7 +120,7 @@ def learn_k_means(data, n_clusters, save_mapping, save_mapping_path, save_model,
     return data
 
 
-def learn_k_means_elbow(data):
+def learn_k_means_elbow(data, save_figure):
     # Instantiate the clustering model and visualizer
     model = KMeans()
     visualizer = KElbowVisualizer(model, k=(1, 12), timings=False)
@@ -127,7 +132,20 @@ def learn_k_means_elbow(data):
         'desc_words',
         'desc_sents'
     ]])
-    visualizer.show()
+    # If we print the plot ourselves instead of using this line, we can adjust its style and save it etc.
+    #visualizer.show()
+
+    plt.xlabel('k')
+    plt.ylabel('Distortion score')
+    plt.legend()
+
+    # plt.grid()
+    plt.tight_layout()
+
+    if save_figure:
+        plt.savefig(REPORTS_DIR / 'k_means_elbow_plot.svg', format='svg', dpi=1200)
+
+    plt.show()
 
 
 if __name__ == '__main__':

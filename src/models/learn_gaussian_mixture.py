@@ -7,7 +7,7 @@ import matplotlib as mpl
 import numpy as np
 from sklearn import mixture
 
-from src.utils import DATA_DIR, MODELS_DIR, load_dataset
+from src.utils import DATA_DIR, MODELS_DIR, REPORTS_DIR, load_dataset
 
 red = '#ff0000' #'#FF0000' #'#FF0000'
 marine = '#9400d3' #'#35193E'#141E8C'
@@ -48,10 +48,10 @@ def main():
     # plot_two_cols(data, x_col='topic_class', y_col='desc_sents')
 
     # Find suitable number of components and convariance type first
-    learn_mixture_using_bic(data)
+    # learn_mixture_using_bic(data, save_figure=False)
 
     # Learn Gaussian mixture model now we know the number of components
-    # learn_mixture(data, n_components=6, cov_type='full')
+    learn_mixture(data, n_components=6, cov_type='full')
 
 
 def plot_two_cols(data, x_col='desc_words', y_col='desc_words'):
@@ -78,7 +78,8 @@ def learn_mixture(data, n_components, cov_type='full'):
     print(Counter(predictions))
 
 
-def learn_mixture_using_bic(data):
+def learn_mixture_using_bic(data, save_figure):
+    """This code is largely taken from https://scikit-learn.org/stable/auto_examples/mixture/plot_gmm_selection.html"""
     lowest_bic = np.infty
     bic = []
     n_components_range = range(1, 10)
@@ -113,8 +114,8 @@ def learn_mixture_using_bic(data):
     bars = []
 
     # Plot the BIC scores
-    plt.figure(figsize=(8, 6))
-    spl = plt.subplot(2, 1, 1)
+    # plt.figure(figsize=(8, 6))
+    # spl = plt.subplot(2, 1, 1)
     for i, (cv_type, color) in enumerate(zip(cv_types, color_iter)):
         xpos = np.array(n_components_range) + 0.2 * (i - 2)
         bars.append(
@@ -123,21 +124,32 @@ def learn_mixture_using_bic(data):
                 bic[i * len(n_components_range) : (i + 1) * len(n_components_range)],
                 width=0.2,
                 color=color,
+                zorder=20,
             )
         )
     plt.xticks(n_components_range)
     plt.ylim([bic.min() * 1.01 - 0.01 * bic.max(), bic.max()])
-    plt.title("BIC score per model")
+    # plt.ylim(0, 1000000)
+    # plt.title("BIC score per model")
     xpos = (
             np.mod(bic.argmin(), len(n_components_range))
             + 0.65
             + 0.2 * np.floor(bic.argmin() / len(n_components_range))
     )
     plt.text(xpos, bic.min() * 0.97 + 0.03 * bic.max(), "*", fontsize=14)
-    spl.set_xlabel("Number of components")
-    spl.legend([b[0] for b in bars], cv_types)
+    plt.xlabel("Number of components")
+    plt.ylabel("BIC score")
+    plt.legend([b[0] for b in bars], cv_types)
 
     print(lowest_bic)
+
+    plt.grid()
+    # This method magically fixes the bugged layout that otherwise will be present. It also fixes margins
+    plt.tight_layout()
+
+    if save_figure:
+        plt.savefig(REPORTS_DIR / 'gaussian_mixture_plot.svg', format='svg', dpi=1200)
+
     plt.show()
 
 
