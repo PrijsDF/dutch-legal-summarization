@@ -1,6 +1,7 @@
 import time
 import re
 from pprint import pprint
+import math
 
 import numpy as np
 import pandas as pd
@@ -41,9 +42,9 @@ plt.rc('figure', titlesize=big_size)     # fontsize of the figure title
 def main():
     """Create a plot of the cases' text and summary lengths in words and sentences and other handy visualizations."""
     # Show the lengths of summaries and cases and put findings in a plot
-    #create_hist_fig(REPORTS_DIR / 'descriptive_features_full_1024.csv')
+    # create_hist_fig(REPORTS_DIR / 'descriptive_features_full_1024.csv', save_figure=True)
 
-    # There are amounts of words that are more frequent than others, important to check the cause of this
+    # There are amounts of words that are more frequent than others, here we can check some of them
     # check_len = [300, 350]
     # for i in range(check_len[0], check_len[1]):
     #     cases_of_len = fetch_cases_of_n_len(REPORTS_DIR / 'descriptive_features_full_1024.csv', desc_len=i)
@@ -53,10 +54,31 @@ def main():
     #         print(cases_of_len)
 
     # We want to see what the correlation is between ds size and rouge scores
-    plot_avg_rouge_ds_len()
+    # plot_avg_rouge_ds_len(save_figure=False)
+
+    # Inspect the summaries of a specific summary (similar to a function found in rechtspraak_view_dataset.py)
+    ecli = 'ECLI:NL:CRVB:2005:AU5952'
+    print_ecli_summaries(REPORTS_DIR / 'human_evaluation/evaluation_sample_evaluated.csv'
+                         , ecli=ecli)
 
 
-def plot_avg_rouge_ds_len():
+def print_ecli_summaries(data_dir, ecli):
+    """Create a figure showing histograms with the word and sentence length distributions."""
+    df = pd.read_csv(data_dir)
+    case_df = df.loc[df['identifier'] == ecli, ]
+    ref_sum = case_df['summary'].iloc[0]
+    full_model_sum = case_df['summary_full_model'].iloc[0]
+    cluster_sum = case_df['summary_cluster_model'].iloc[0]
+    # full_text = case_df['description'].iloc[0]
+
+    print(f'Reference summary:\n{ref_sum}'
+          f'\n\nFull model summary:\n{full_model_sum}'
+          f'\n\nCluster model summary:\n{cluster_sum}')
+
+    return True
+
+
+def plot_avg_rouge_ds_len(save_figure=False):
     """This function is used to show the correlation of the rouge scores that the model achieves and size of the dataset
     the model was trained on."""
     annotations = ["Full", "0", "1", "2", "3", "4", "5"]
@@ -78,19 +100,27 @@ def plot_avg_rouge_ds_len():
     plt.xlim(0, 110000)
     plt.ylim(0, 100)
 
-    # Annotate the plotted values
+    # Annotate the plotted values and a vertical guide line
     for i, label in enumerate(annotations):
-        #plt.annotate(label, (dataset_sizes[i] + 5, rouge_1_scores[i] + 1))
-        #plt.annotate(label, (dataset_sizes[i] + 5, rouge_2_scores[i] + 1))
-        #plt.annotate(label, (dataset_sizes[i] + 5, rouge_l_scores[i] + 1))
         plt.axvline(x=dataset_sizes[i], color='black', linewidth=1.5, linestyle=':')
         plt.annotate(label, (dataset_sizes[i] + 400, 1))
+
+        # For the full model, we want to print horizontal guide lines to show which of the cluster models outperform it
+        if label == 'Full':
+            # This colar map is the default one; it was also used to draw the scatter plots
+            cmap = plt.get_cmap("tab10")
+            plt.axhline(y=rouge_1_scores[i], color='C0', linewidth=1.5, linestyle=':')
+            plt.axhline(y=rouge_2_scores[i], color='C1', linewidth=1.5, linestyle=':')
+            plt.axhline(y=rouge_l_scores[i], color='C2', linewidth=1.5, linestyle=':')
 
     plt.legend(loc=1)
 
     plt.grid()
     plt.tight_layout()
-    plt.savefig(REPORTS_DIR / 'correlation_ds_size_rouge.svg', format='svg', dpi=1200)
+
+    if save_figure:
+        plt.savefig(REPORTS_DIR / 'correlation_ds_size_rouge.svg', format='svg', dpi=1200)
+
     plt.show()
 
 
@@ -104,67 +134,47 @@ def fetch_cases_of_n_len(data_dir, desc_len=1000):
     return df
 
 
-def create_hist_fig(data_dir):
+def create_hist_fig(data_dir, save_figure=False):
     """Create a figure showing histograms with the word and sentence length distributions."""
     df = pd.read_csv(data_dir)
 
     # Plot the data
-    # We use below layout
-    plt.style.use('seaborn-whitegrid')  # ggplot - seaborn - searborn-darkgrid
-    plt.figure(figsize=(14, 7))  # , dpi=300)
-    plt.suptitle('Probability Density of Case Summary and Case Description Length Measures')
-    plt.subplots_adjust(left=0.055, bottom=0.06, right=0.98, top=0.9, wspace=0.1, hspace=None)
+    features = ['sum_words', 'desc_words', 'sum_sents', 'desc_sents']
 
-    # Make a 2x2 fig (4 subplots)
-    # Summary words
-    iqr = df[df['sum_words'].between(df['sum_words'].quantile(.0), df['sum_words'].quantile(.99), inclusive=True)]
-    #iqr = df[df['sum_words'].between(df['sum_words'].quantile(.0), df['sum_words'].quantile(1), inclusive=True)]
-    uniq_count = iqr.nunique()['sum_words']
-    plt.subplot(2, 2, 1)
-    plt.hist(iqr['sum_words'], density=True, bins=uniq_count)
-    plt.title('Summary Length')
-    plt.xlabel('Length (words)')
-    plt.ylabel('Density')
-    x_max = iqr['sum_words'].max()
-    x_min = iqr['sum_words'].min()
-    plt.xlim(0, x_max)
-    plt.xticks(np.arange(0, x_max, 20))
+    # The mapping is used to retrieve the plot's title and axis labels
+    texts_mapping = {
+        'sum_words': ['Summary Length', 'Length (words)', 'Density'],
+        'desc_words': ['Description Length', 'Length (words)', 'Density'],
+        'sum_sents': ['Summary Length', 'Length (sentences)', 'Density'],
+        'desc_sents': ['Description Length', 'Length (sentences)', 'Density']
+    }
+    # Make a subplot for each of the four columns
+    for i in range(len(features)):
+        feature = features[i]
+        iqr = df[df[feature].between(df[feature].quantile(.0), df[feature].quantile(.99), inclusive='both')]
+        uniq_count = iqr.nunique()[feature]
 
-    # Description words
-    iqr = df[df['desc_words'].between(df['desc_words'].quantile(.0), df['desc_words'].quantile(.99), inclusive=True)]
-    #iqr = df[df['desc_words'].between(df['desc_words'].quantile(.0), df['desc_words'].quantile(1), inclusive=True)]
-    uniq_count = iqr.nunique()['desc_words']
-    plt.subplot(2, 2, 2)
-    plt.hist(iqr['desc_words'], density=True, bins=uniq_count)
-    plt.title('Description Length')
-    plt.xlabel('Length (words)')
-    x_max = iqr['desc_words'].max()
-    x_min = iqr['desc_words'].min()
-    plt.xlim(x_min, x_max)
-    plt.xticks(np.arange(0, x_max, 100))
+        plt.subplot(2, 2, i+1)
+        plt.hist(iqr[feature], density=True, bins=uniq_count, zorder=10)
+        # Only the first plot of both gets a title to prevent clutter
+        if feature == 'sum_words' or feature == 'desc_words':
+            plt.title(texts_mapping[feature][0])
 
-    iqr = df[df['sum_sents'].between(df['sum_sents'].quantile(.0), df['sum_sents'].quantile(.99), inclusive=True)]
-    #iqr = df[df['sum_sents'].between(df['sum_sents'].quantile(.0), df['sum_sents'].quantile(1), inclusive=True)]
-    uniq_count = iqr.nunique()['sum_sents']
-    plt.subplot(2, 2, 3)
-    plt.hist(iqr['sum_sents'], density=True, bins=uniq_count)
-    plt.ylabel('Density')
-    plt.xlabel('Length (sentences)')
-    x_max = iqr['sum_sents'].max()
-    x_min = iqr['sum_sents'].min()
-    plt.xlim(0, x_max)
-    plt.xticks(np.arange(0, x_max, 1))
+        plt.xlabel(texts_mapping[feature][1])
 
-    iqr = df[df['desc_sents'].between(df['desc_sents'].quantile(.0), df['desc_sents'].quantile(.99), inclusive=True)]
-    #iqr = df[df['desc_sents'].between(df['desc_sents'].quantile(.0), df['desc_sents'].quantile(1), inclusive=True)]
-    uniq_count = iqr.nunique()['desc_sents']
-    plt.subplot(2, 2, 4)
-    plt.hist(iqr['desc_sents'], density=True, bins=uniq_count)
-    plt.xlabel('Length (sentences)')
-    x_max = iqr['desc_sents'].max()
-    x_min = iqr['desc_sents'].min()
-    plt.xlim(x_min, x_max)
-    plt.xticks(np.arange(x_min, x_max, 20))
+        # Only the left column plots need to have a y label, again to prevent clutter
+        if feature == 'sum_words' or feature == 'sum_sents':
+            plt.ylabel(texts_mapping[feature][2])
+        plt.grid(zorder=-1)
+        x_max = iqr[feature].max()
+        x_min = iqr[feature].min()
+        plt.xlim(0, x_max)
+
+    plt.tight_layout()
+
+    if save_figure:
+        file_format = 'svg'
+        plt.savefig(REPORTS_DIR / f'hist_word_sent_len.{file_format}', format=file_format, dpi=1200)
 
     plt.show()
 
