@@ -18,6 +18,30 @@ rouge_scorer = Rouge()
 def main():
     """In this file, rouge scores will be computed for the generated summaries. We load in a file containing generated
     summaries for either the full dataset or one of the clusters. """
+    # Now, we also need the dataset to fetch the corresponding real summary; we can use the test split with all cases
+    all_cases = pd.read_parquet(DATA_DIR / 'open_data_uitspraken/processed/test_rechtspraak.parquet')
+
+    #print(all_cases.columns)
+    # First we compute the scores for each of the models
+    models = ['full']#, '0', '1', '2', '3', '4', '5'] #temp
+    rouge_scores = []
+    pbar = tqdm(models)
+    for model in pbar:
+        pbar.set_description(f"Computing scores for model {model}")
+
+        #model_scores = compute_rouge_scores(model, all_cases)
+        model_scores = compute_grouped_rouge_scores(model, all_cases)  # only use this for the full model
+        rouge_scores.append([model, model_scores])
+
+    # Finally we update the scores with the weighted score for the cluster framework, using the invidivual scores
+    rouge_scores = compute_clusters_combined(rouge_scores)
+
+    # Print the scores
+    for model_scores in rouge_scores:
+        print(model_scores)
+
+
+def compute_rouge_scores(model, all_cases):
     # This mapping is used to load in the appriopiate dataset
     file_mapping = {
         'full': REPORTS_DIR / 'generated_summaries/model_full_sums_12-05_22-16-15.csv',
@@ -29,28 +53,6 @@ def main():
         '5': REPORTS_DIR / 'generated_summaries/model_5_sums_13-05_14-14-09.csv',
     }
 
-    # Now, we also need the dataset to fetch the corresponding real summary; we can use the test split with all cases
-    all_cases = pd.read_parquet(DATA_DIR / 'open_data_uitspraken/processed/test_rechtspraak.parquet')
-
-    # First we compute the scores for each of the models
-    models = ['full', '0', '1', '2', '3', '4', '5']
-    rouge_scores = []
-    pbar = tqdm(models)
-    for model in pbar:
-        pbar.set_description(f"Computing scores for model {model}")
-
-        model_scores = compute_rouge_scores(model, file_mapping, all_cases)
-        rouge_scores.append([model, model_scores])
-
-    # Finally we update the scores with the weighted score for the cluster framework, using the invidivual scores
-    rouge_scores = compute_clusters_combined(rouge_scores)
-
-    # Print the scores
-    for model_scores in rouge_scores:
-        print(model_scores)
-
-
-def compute_rouge_scores(model, file_mapping, all_cases):
     results_df = pd.read_csv(file_mapping[model])
 
     # Clean the tags that were generated with the summary
@@ -73,6 +75,55 @@ def compute_rouge_scores(model, file_mapping, all_cases):
         # print(f'ROUGE-1-F: {rouge_1_f}, ROUGE-2-F: {rouge_2_f} and ROUGE-l-F: {rouge_l_f}')
 
         case_scores.append([rouge_1_f, rouge_2_f, rouge_l_f])
+
+    avg_rouge_1 = round(sum([scores[0] for scores in case_scores]) / len(case_scores), 2)
+    avg_rouge_2 = round(sum([scores[1] for scores in case_scores]) / len(case_scores), 2)
+    avg_rouge_l = round(sum([scores[2] for scores in case_scores]) / len(case_scores), 2)
+
+    # print(f'Model {model} achieves the following rouge scores: '
+    #       f'avg. ROUGE-1-F: {avg_rouge_1}, avg. ROUGE-2-F: {avg_rouge_2} and avg. ROUGE-l-F: {avg_rouge_l}')
+
+    return [avg_rouge_1, avg_rouge_2, avg_rouge_l]
+
+
+def compute_grouped_rouge_scores(model, all_cases):
+    """Use this as an ad-hoc hack to check how the full model performs on each of the classes; this result is lacking
+    from my thesis right now, but it might show why something has happened (see 5.5.2)"""
+    # This mapping is used to load in the appriopiate dataset
+    file_mapping = {
+        'full': REPORTS_DIR / 'generated_summaries/model_full_sums_12-05_22-16-15.csv'
+    }
+
+    results_df = pd.read_csv(file_mapping[model])
+
+    # Clean the tags that were generated with the summary
+    results_df['c_summary'] = results_df['c_summary'].str.slice(7, -4)  # </s><s> en <s>
+
+    # Compute and append the scores of each case
+    case_scores = []
+    for i in range(len(results_df)):
+        ecli = results_df.iloc[i]['identifier']
+        can_summary = results_df.iloc[i]['c_summary']
+        ref_summary = all_cases.loc[all_cases['identifier'] == ecli]['summary'].item()
+
+        case_class = all_cases.loc[all_cases['identifier'] == ecli]['class'].item()
+
+        scores = rouge_scorer.get_scores(hyps=can_summary, refs=ref_summary)
+        rouge_1_f = scores[0]['rouge-1']['f'] * 100
+        rouge_2_f = scores[0]['rouge-2']['f'] * 100
+        rouge_l_f = scores[0]['rouge-l']['f'] * 100
+        # print(f'ROUGE-1-F: {rouge_1_f}, ROUGE-2-F: {rouge_2_f} and ROUGE-l-F: {rouge_l_f}')
+
+        case_scores.append([rouge_1_f, rouge_2_f, rouge_l_f, case_class])
+
+    # Loop over each class and compute the avg scores for this class
+    for case_class in range(6):
+        class_cases = [case for case in case_scores if case[3] == case_class]
+        avg_rouge_1 = round(sum([scores[0] for scores in class_cases]) / len(class_cases), 2)
+        avg_rouge_2 = round(sum([scores[1] for scores in class_cases]) / len(class_cases), 2)
+        avg_rouge_l = round(sum([scores[2] for scores in class_cases]) / len(class_cases), 2)
+
+        print(f'Class {case_class}: ROUGE-1:{avg_rouge_1}, ROUGE-2:{avg_rouge_2}, ROUGE-L:{avg_rouge_l}')
 
     avg_rouge_1 = round(sum([scores[0] for scores in case_scores]) / len(case_scores), 2)
     avg_rouge_2 = round(sum([scores[1] for scores in case_scores]) / len(case_scores), 2)
