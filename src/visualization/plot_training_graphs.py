@@ -14,7 +14,7 @@ red = '#ff0000'  # Use solely for the cluster combined model
 
 geel = '#ff00f0'
 marine = '#9400d3' #'#35193E'#141E8C'
-olive = '#ff4500' #'#AD1759' #'#808000'
+olive = '#ff4500' #'#AD1759' #'#808000' # purple
 purple = '#ffa500' #'#F37651' #'#2A0800'
 grass = '#009900' #'#E13342' #'#28b463'
 pink = '#800000' #'#701F57'  #'#F6B48F' #'#b428a7'
@@ -46,7 +46,7 @@ def main(graphs_dir=REPORTS_DIR / 'training_graphs'):
     # Pretraining - Generate the plot containing both of the loss graphs
     pt_train_file_path = graphs_dir / 'pretraining/run-pt_65p_2-tag-train_loss.csv'
     pt_val_file_path = graphs_dir / 'pretraining/run-pt_65p_2-tag-eval_loss.csv'
-    # pt_create_plot(pt_train_file_path, pt_val_file_path)
+    pt_create_plot(pt_train_file_path, pt_val_file_path)
 
     # Finetuning - Generate train and val plot for the aggregate cluster model and the full model
     # ft_create_plot_full_models(fine_tune_folder=graphs_dir, x_axis='index')
@@ -69,13 +69,21 @@ def pt_create_plot(train_path, val_path):
     val_df = val_df.rename(columns={'Step': 'Val_Step', 'Value': 'Val_Value'})
 
     # Plot the data
-    # We use below layout; this layout is also used in other files
-    #plt.style.use('seaborn-whitegrid')  # ggplot - seaborn - searborn-darkgrid
-    #plt.suptitle('Loss During BART Pretraining')
-    #plt.subplots_adjust(left=0.055, bottom=0.06, right=0.98, top=0.9, wspace=0.1, hspace=None)
-
     plt.plot(train_df['Step'], train_df['Value'], label="train")
     plt.plot(val_df['Val_Step'], val_df['Val_Value'], label="validation")
+    # To highlight the strange disturbance in the losses
+    vertical_lines = [
+        [5000, '5000'],
+        [35000, '35000'],
+        [82500, '82500']
+    ]
+    for line in vertical_lines:
+        x_coord = line[0]
+        label = line[1]
+
+        plt.axvline(x=x_coord, color='black', linestyle='--', zorder=-10, linewidth=1)
+        plt.annotate(label, (x_coord+2000, 0.1), fontsize=13)
+
     plt.xlabel('Step')
     plt.ylabel('Cross-entropy Loss')
     x_max = train_df['Step'].max()

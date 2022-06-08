@@ -48,10 +48,10 @@ def main():
     # plot_two_cols(data, x_col='topic_class', y_col='desc_sents')
 
     # Find suitable number of components and convariance type first
-    # learn_mixture_using_bic(data, save_figure=False)
+    learn_mixture_using_bic(data, save_figure=True)
 
     # Learn Gaussian mixture model now we know the number of components
-    learn_mixture(data, n_components=6, cov_type='full')
+    # learn_mixture(data, n_components=6, cov_type='full')
 
 
 def plot_two_cols(data, x_col='desc_words', y_col='desc_words'):
@@ -109,7 +109,7 @@ def learn_mixture_using_bic(data, save_figure):
                 best_gmm = gmm
 
     bic = np.array(bic)
-    color_iter = itertools.cycle(["navy", "turquoise", "cornflowerblue", "darkorange"])
+    color_iter = itertools.cycle(["#1F77B4", "#834187", "#ffa500", "#009900"])
     clf = best_gmm
     bars = []
 

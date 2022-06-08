@@ -80,7 +80,9 @@ def print_ecli_summaries(data_dir, ecli):
 
 def plot_avg_rouge_ds_len(save_figure=False):
     """This function is used to show the correlation of the rouge scores that the model achieves and size of the dataset
-    the model was trained on."""
+    the model was trained on.
+    Note: This plot is no longer used in the thesis document (as of 31-5-2022) as I found out that the full model
+    performs equally well on these cluster subsets."""
     annotations = ["Full", "0", "1", "2", "3", "4", "5"]
     rouge_1_scores = [46.52, 39.74, 46.74, 43.82, 52.57, 46.56, 41.21]
     rouge_2_scores = [33.74, 26.41, 35.42, 31.20, 43.15, 34.35, 28.13]

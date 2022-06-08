@@ -14,7 +14,8 @@ def main():
     """View Open Rechtspraak dataset with pandas."""
     # Load the raw dataset
     #all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/interim')
-    #print(len(all_cases))
+    # all_cases = pd.read_parquet(DATA_DIR / 'open_data_uitspraken/processed/test_rechtspraak.parquet')
+    # print(len(all_cases))
 
     # Get a sample of the dataset and save the sample as csv
     # samples_df = create_sample_of_df(all_cases, number_of_items=100, only_complete_items=False,
@@ -33,10 +34,10 @@ def main():
 
     # View a cluster dataset split (e.g. check whether this is correct
     # {0: 23584, 5: 21875, 2: 19156, 4: 15413, 1: 13504, 3: 6669})
-    cluster_file = '3_test_rechtspraak'
-    cluster_file_path = DATA_DIR / f'open_data_uitspraken/processed/cluster_subsets/{cluster_file}.parquet'
-    df = pd.read_parquet(cluster_file_path)
-    print(df)
+    # cluster_file = '3_test_rechtspraak'
+    # cluster_file_path = DATA_DIR / f'open_data_uitspraken/processed/cluster_subsets/{cluster_file}.parquet'
+    # df = pd.read_parquet(cluster_file_path)
+    # print(df)
 
 
 def create_sample_of_df(df, number_of_items=20, only_complete_items=True, save_sample=False, save_dir=None):

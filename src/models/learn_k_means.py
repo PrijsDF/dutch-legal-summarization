@@ -54,15 +54,15 @@ def main():
     # plot_two_cols(data, x_col='topic_class', y_col='desc_sents')
 
     # Find suitable number of clusters using elbow method first
-    # learn_k_means_elbow(data, save_figure=False)
+    learn_k_means_elbow(data, save_figure=True)
 
     # Learn Gaussian mixture model now we know the number of components
     save_mapping_path = REPORTS_DIR / 'ecli_cluster_mapping.csv'
     save_model_path = MODELS_DIR / 'k_means_model.pkl'
-    clustered_cases = learn_k_means(data, n_clusters=6, save_mapping=False, save_mapping_path=save_mapping_path
-                                    , save_model=False, save_model_path=save_model_path)
-
-    print(clustered_cases)
+    # clustered_cases = learn_k_means(data, n_clusters=6, save_mapping=False, save_mapping_path=save_mapping_path
+    #                                 , save_model=False, save_model_path=save_model_path)
+    #
+    # print(clustered_cases)
 
 
 def plot_two_cols(data, x_col='desc_words', y_col='desc_words'):
@@ -125,6 +125,8 @@ def learn_k_means_elbow(data, save_figure):
     model = KMeans()
     visualizer = KElbowVisualizer(model, k=(1, 12), timings=False)
 
+    fig = plt.figure(figsize=(14, 7))
+    ax = fig.add_subplot(1, 1, 1)
     visualizer.fit(data[[
         'topic_class',
         'redundancy',
@@ -132,8 +134,17 @@ def learn_k_means_elbow(data, save_figure):
         'desc_words',
         'desc_sents'
     ]])
+
     # If we print the plot ourselves instead of using this line, we can adjust its style and save it etc.
-    #visualizer.show()
+    # visualizer.show()
+
+    # We need to add some extra styles to make the plot consistent with other plots; yellowbricks doesn't seem to offer
+    # these options unfortunately. The linewidth and tick lengths are the defaults used in matplotlib
+    for spine in ['top', 'right', 'bottom', 'left']:
+        ax.spines[spine].set(color='black')
+        ax.spines[spine].set(linewidth='0.8')
+
+    ax.tick_params(which='major', length=3.5)
 
     plt.xlabel('k')
     plt.ylabel('Distortion score')
