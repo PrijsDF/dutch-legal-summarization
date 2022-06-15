@@ -1,8 +1,13 @@
 # Pycharm folder
 .idea/
 
-# exclude data from source control by default
-/data/
+# exclude data folder by default, except for the gitkeeps
+data/*/*
+!data/features/.gitkeep
+!data/external/.gitkeep
+!data/raw/.gitkeep
+!data/interim/.gitkeep
+!data/processed/.gitkeep
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
