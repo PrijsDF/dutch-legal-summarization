@@ -9,6 +9,10 @@ data/*/*
 !data/interim/.gitkeep
 !data/processed/.gitkeep
 
+# Exclude the models folder by default, except for gitkeep
+models/*
+!models/.gitkeep
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
