@@ -1,7 +1,7 @@
 # Pycharm folder
 .idea/
 
-# exclude data folder by default, except for the gitkeeps
+# exclude the following folders by default, except for the gitkeeps
 data/*/*
 !data/features/.gitkeep
 !data/external/.gitkeep
@@ -9,9 +9,10 @@ data/*/*
 !data/interim/.gitkeep
 !data/processed/.gitkeep
 
-# Exclude the models folder by default, except for gitkeep
 models/*
 !models/.gitkeep
+
+reports/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
