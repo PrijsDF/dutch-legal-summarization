@@ -50,7 +50,7 @@ Run ```/this_repo/src/data/make_interim_dataset.py``` to generate the interim da
 
 ### 1.4 The processed dataset
 <!-- zo maken dat de default manier niet stratified gebruikt, met de opmerking: 'om de thesis te reproducen, maak dan eerst de cluster modellen'-->
-<strong>Important</strong>: This step can only be done after the [cluster model](#22-clustering-features) scripts have been run. In the thesis we studied what influence clustering has on subsequent summarization. Therefore, the processed dataset is generated in a stratified manner depending on the cluster each case belong to.
+<strong>Important</strong>: This step can only be done after the [cluster model scripts](#22-clustering-features) have been run. In the thesis we studied what influence clustering has on subsequent summarization. Therefore, the processed dataset is generated in a stratified manner depending on the cluster each case belong to.
 
 We chose to use the following distribution of cases: 70% train/ 20% dev / 10% test. Now, run ```/this_repo/src/data/generate_splits_stratified.py```. Two things have happened:
 - The dataset splits for the full dataset were generated and stored in ```/this_repo/data/processed```
@@ -63,7 +63,7 @@ In the thesis, we used two extra sets of features to achieve two different goals
 2. Clustering features; to cluster the datset and use this as input for some of the summarization models
 
 ### 2.1 Descriptive features
-First, as part of an exploratory analysis of the dataset, a set of features by Bommasani and Cardie (xxxx), was computed. One of these features requires us to derive topics for the cases using LDA. Therefore, we first need to train the LDA model on the complete corpus. To do this, run ```/this_repo/src/models/create_lda_model.py```. 
+First, as part of an exploratory analysis of the dataset, a set of features by [Bommasani and Cardie](https://aclanthology.org/2020.emnlp-main.649/), was computed. One of these features requires us to derive topics for the cases using LDA. Therefore, we first need to train the LDA model on the complete corpus. To do this, run ```/this_repo/src/models/create_lda_model.py```. 
 
 Now that we have the LDA model, we can compute the set of descriptive features by running ```/this_repo/src/features/compute_bommasani_features.py```. This can take up to N hours. The results will be stored in ```/this_repo/reports/descriptive_features_full_1024.csv```.
 
@@ -76,11 +76,52 @@ Clustering simply uses k-means. To cluster the data, run ```/this_repo/src/featu
 
 ## 4. Modelling the summarization system
 
+Obtaining the summarization models consists of three steps:
+1. First, a BART tokenizer for Dutch texts is trained
+2. Second, a BART model is pretrained using Dutch texts
+3. Third, the pretrained BART model is fine-tuned on the legal cases dataset
+
 ### 4.1 Training the BART tokenizer
+The tokenizer will be trained on the tiny subset of the [Dutch split of the mC4 dataset](https://huggingface.co/datasets/yhavinga/mc4_nl_cleaned). Run the file ```/this_repo/src/models/train_tokenizer.py``` to train the tokenizer. The tokenizer files will be saved in ```/this_repo/models/bart_nl_tiny_tk/```.
 
 ### 4.2 Pretraining BART
+Now that we have the tokenizer, we can pretrain the BART model. To this end, we again use the tiny mC4 Dutch split. In total this process takes ~10 days (1 epoch) on a single v3-8 TPU. Start training by running ```/this_repo/src/models/pt_bart.py```. The best model will be stored in ```/this_repo/models/bart_pt/pt_{date_and_time}/best_model``` where ```{date_and_time}``` will depend on when you run the script. Every 25000 training steps a checkpoint will be saved (max 3); these can also be used to fine-tune in case the training halts before completing.
 
 ### 4.3 Fine-tuning BART to obtain summarization models
+Having pretrained the BART model, we are ready to fine-tune this model using the legal cases data in order to obtain the summarization models. The process is largely the same as when pretraining model; the main difference is that we use the Rechtspraak dataset.
+
+To start, you will have to update the dataset path on line 42 in ```/this_repo/src/models/ft_bart.py``` with the dataset that you obtained after [pretraining the model](#42-pretraining-bart):
+```python
+model = BartForConditionalGeneration.from_pretrained(MODELS_DIR / f"bart_pt/pt_22-04_16-39-16/checkpoints/checkpoint-475000")
+```
+
+Now, in the same file, specify which dataset you want to use on line 17: 
+```python
+# Choose from {'full', '0', '1', '2', '3', '4', '5'}
+dataset_name = 'full'
+```
+Finally, run the file. The fine-tuned model will be stored in ```/this_repo/models/sum_{dataset_name}_bart_nl_{date_and_time}/best_model```. Again, at most three checkpoints will be stored too.
+
+### 4.4 Generating summaries for the test sets
+Of course, the most interesting part of this process of training a summarization model is to use it on the test set(s) and see whether it really works. To do this, you first have to edit line 42 in ```/this_repo/src/models/ft_bart_inf.py``` and replace the model path(s) with your fine-tuned model path(s):
+```python
+# Change these to your own model paths
+    model_mapping = {
+        'full': 'sum_full_bart_nl_09-05_21-47-58/best_model',
+        '0': 'sum_0_bart_nl_10-05_09-26-02/best_model',
+        '1': 'sum_1_bart_nl_10-05_12-23-11/best_model',
+        '2': 'sum_2_bart_nl_10-05_16-45-27/best_model',
+        '3': 'sum_3_bart_nl_09-05_20-52-08/best_model',
+        '4': 'sum_4_bart_nl_10-05_19-26-19/best_model',
+        '5': 'sum_5_bart_nl_10-05_14-06-55/best_model',
+    }
+```
+
+Now, you can run ```/this_repo/src/models/ft_bart_inf.py``` while specifying what test set you want to predict/summarize for; the script will automatically fetch the corresponding model. E.g. if you want to predict for the full model's test set, use:   
+```bash
+python ft_bart_inf.py --dataset = 'full'
+```
+The results will be stored in ```/this_repo/reports/inf_results/model_{dataset_name}_sums_{date_and_time}.csv```.
 
 ## Notes 
 - Scattered over the repository, you might find other scripts. Most of these are used to evaluate the generated summaries and create graphs of the results.
