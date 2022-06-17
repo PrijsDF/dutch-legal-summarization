@@ -1,73 +1,37 @@
-import itertools
 from collections import Counter
 import pickle
 
 import pandas as pd
 import matplotlib.pyplot as plt
-import numpy as np
 from sklearn.cluster import KMeans
-import yellowbrick
 from yellowbrick.cluster import KElbowVisualizer
 
-from src.utils import DATA_DIR, REPORTS_DIR, MODELS_DIR, load_dataset
+# src.utils also loads layout parameters for pyplot
+from src.utils import DATA_DIR, REPORTS_DIR
 
 
-red = '#ff0000' #'#FF0000' #'#FF0000'
-marine = '#9400d3' #'#35193E'#141E8C'
-olive = '#ff4500' #'#AD1759' #'#808000'
-purple = '#ffa500' #'#F37651' #'#2A0800'
-grass = '#009900' #'#E13342' #'#28b463'
-pink = '#800000' #'#701F57'  #'#F6B48F' #'#b428a7'
-blue = '#1F77B4' #'#1F77B4' # '#1f77ba
-
-cluster_alpha = 0.7  # The opacity of cluster model lines; to make hte main model line better visible
-linestyle = 'solid'  # The type of line for the validation curves in the val loss all models graph
-
-# Font sizes for graph texts
-small_size = 16
-medium_size = 20
-big_size = 16
-
-plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']}, size=small_size)  # controls default text sizes
-plt.rc('text', usetex=True)
-plt.figure(figsize=(14, 7))#, dpi=160)  #, dpi=300)
-plt.rc('axes', titlesize=small_size)     # fontsize of the axes title
-plt.rc('axes', labelsize=medium_size)    # fontsize of the x and y labels
-plt.rc('xtick', labelsize=small_size)    # fontsize of the tick labels
-plt.rc('ytick', labelsize=small_size)    # fontsize of the tick labels
-plt.rc('legend', fontsize=14)    # legend fontsize
-plt.rc('figure', titlesize=big_size)     # fontsize of the figure title
-
+# Due to conflicts with yellowbrick functionality, the plots in this file require extra styling
 plt.rc('patch', edgecolor='black')  # otherwise the elbow plot is printed with grey border
 plt.rc('patch', linewidth='1')
-#yellowbrick.style.rcmod.set_style(style='white')  # otherwise the elbow plot is printed in seaborn
 
 
 def main():
     """ We will learn a k-means model that can be used to cluster cases on later.
     """
     # Load the dataset and remove the irrelevant columns
-    data = pd.read_csv(DATA_DIR / 'open_data_uitspraken/features/clustering_features_full_1024.csv')
+    data = pd.read_csv(DATA_DIR / 'features/clustering_features_full_1024.csv')
     # data = data.drop(columns=['redundancy', 'semantic_coherence'])
 
-    # Plot two of the dataset's cols
-    # plot_two_cols(data, x_col='topic_class', y_col='desc_sents')
-
     # Find suitable number of clusters using elbow method first
-    learn_k_means_elbow(data, save_figure=True)
+    learn_k_means_elbow(data, save_figure=False)
 
     # Learn Gaussian mixture model now we know the number of components
-    save_mapping_path = REPORTS_DIR / 'ecli_cluster_mapping.csv'
-    save_model_path = MODELS_DIR / 'k_means_model.pkl'
+    # save_mapping_path = REPORTS_DIR / 'ecli_cluster_mapping.csv'
+    # save_model_path = MODELS_DIR / 'k_means_model.pkl'
     # clustered_cases = learn_k_means(data, n_clusters=6, save_mapping=False, save_mapping_path=save_mapping_path
     #                                 , save_model=False, save_model_path=save_model_path)
     #
     # print(clustered_cases)
-
-
-def plot_two_cols(data, x_col='desc_words', y_col='desc_words'):
-    plt.scatter(x=data[x_col], y=data[y_col])
-    plt.show()
 
 
 def learn_k_means(data, n_clusters, save_mapping, save_mapping_path, save_model, save_model_path):

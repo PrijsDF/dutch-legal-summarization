@@ -1,14 +1,9 @@
-import time
-import re
-from pprint import pprint
-
 import numpy as np
 import pandas as pd
-import matplotlib
 import matplotlib.pyplot as plt
-from tqdm import tqdm
 
-from src.utils import DATA_DIR, REPORTS_DIR, load_dataset
+# src.utils also loads layout parameters for pyplot
+from src.utils import REPORTS_DIR
 
 
 # Some pandas options that allow to view all collumns and rows at once
@@ -16,50 +11,19 @@ pd.set_option('display.max_columns', 500)
 pd.set_option('max_colwidth', 400)
 pd.options.display.width = None
 
-blue = '#1F77B4'  # Use solely for the full model
-red = '#ff0000'  # Use solely for the cluster combined model
-
-geel = '#ff00f0'
-marine = '#9400d3' #'#35193E'#141E8C'
-olive = '#ff4500' #'#AD1759' #'#808000'
-purple = '#ffa500' #'#F37651' #'#2A0800'
-grass = '#009900' #'#E13342' #'#28b463'
-pink = '#800000' #'#701F57'  #'#F6B48F' #'#b428a7'
-
-cluster_alpha = 0.7  # The opacity of cluster model lines; to make hte main model line better visible
-linestyle = 'dashed'  # The type of line for the validation curves in the val loss all models graph
-
-# Font sizes for graph texts
-small_size = 16
-medium_size = 20
-big_size = 16
-
-plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']}, size=small_size)  # controls default text sizes
-plt.rc('text', usetex=True)
-plt.figure(figsize=(14, 7))#, dpi=160)  #, dpi=300)
-plt.rc('axes', titlesize=small_size)     # fontsize of the axes title
-plt.rc('axes', labelsize=medium_size)    # fontsize of the x and y labels
-plt.rc('xtick', labelsize=small_size)    # fontsize of the tick labels
-plt.rc('ytick', labelsize=small_size)    # fontsize of the tick labels
-plt.rc('legend', fontsize=14)    # legend fontsize
-plt.rc('figure', titlesize=big_size)     # fontsize of the figure title
-
 
 def main():
     """In this file, rouge scores will be computed for the generated summaries. We load in a file containing generated
     summaries for either the full dataset or one of the clusters. """
     # Load the file containing the evaluations
     results = pd.read_csv(REPORTS_DIR / 'human_evaluation/evaluation_sample_evaluated.csv')
-    # print(results.columns)
 
     # Remove irrelevant columns
     results = results.drop(columns=['Unnamed: 0', 'identifier', 'summary', 'description'
                                     , 'summary_full_model', 'summary_cluster_model'])
 
-    # print(results)
-
     # Print the averages for each of the metrics; make true to look at class-specific results
-    get_averages(results, grouped_by_class=False, latex_output=True)
+    get_averages(results, grouped_by_class=True, latex_output=True)
 
     # Generate a bar graph showing the distribution of the scores for each class
     # plot_score_freqs(results, save_figure=False)
@@ -129,12 +93,11 @@ def plot_score_freqs(df, save_figure=False):
             ax[i].set_xlabel('Cumulative frequency')
 
         ax[i].set_title(plot_names_mapping[models[i]])
-        # plt.legend()
+
     handles, labels = plt.gca().get_legend_handles_labels()
     order = [0, 1, 2, 3, 4]
     fig.legend([handles[idx] for idx in order], [labels[idx] for idx in order], ncol=1, loc='lower right')
 
-    #plt.grid(zorder=-10)
     plt.tight_layout()
 
     if save_figure:
@@ -144,7 +107,8 @@ def plot_score_freqs(df, save_figure=False):
 
 
 def get_averages(df, grouped_by_class, latex_output):
-    """Prints the averages of the columns, and thus of each of the metrics that was evaluated."""
+    """Prints the averages of the columns, and thus of each of the metrics that was evaluated. If latex_output is
+    True, the output will be printed in a format that can be easily copied into latex. """
     if grouped_by_class:
         # Print the class counts too if necessary
         # print(df.groupby('class').count())

@@ -4,12 +4,42 @@ import time
 
 import pandas as pd
 import dask.dataframe as dd
+import matplotlib.pyplot as plt
 
+
+# To easily refer to common dirs use these in other files
 ROOT_DIR = Path(sys.path[1])
 DATA_DIR = ROOT_DIR / 'data'
 MODELS_DIR = ROOT_DIR / 'models'
 REPORTS_DIR = ROOT_DIR / 'reports'
 LOG_DIR = ROOT_DIR / 'reports/logs'
+
+# These colors will be loaded into files that need to access them
+COLORS = {
+    'blue': '#1F77B4',
+    'red': '#ff0000',
+    'pink': '#ff00f0',
+    'purple': '#9400d3',
+    'orange': '#ff4500',
+    'yellow': '#ffa500',
+    'green': '#009900',
+    'brown': '#800000',
+}
+
+# We specify layout rules for the plots here, as utils will be loaded in all graphing files
+small_size = 16
+medium_size = 20
+big_size = 16
+
+plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']}, size=small_size)
+plt.rc('text', usetex=True)
+plt.figure(figsize=(14, 7))
+plt.rc('axes', titlesize=small_size)
+plt.rc('axes', labelsize=medium_size)
+plt.rc('xtick', labelsize=small_size)
+plt.rc('ytick', labelsize=small_size)
+plt.rc('legend', fontsize=14)
+plt.rc('figure', titlesize=big_size)
 
 
 # This name will give a conflict if used in HF datasets scripts; as they also called their function this way
@@ -17,6 +47,7 @@ def load_dataset(data_dir, use_dask=False, columns=None):
     """ Read all data and combine these in a single df."""
     start = time.time()
 
+    # Dask is used when computing the LDA model; without it there would be memory errors
     if use_dask:
         cases_content = dd.read_parquet(data_dir / '*cases_chunk_*.parquet', engine='pyarrow')
 
@@ -40,26 +71,6 @@ def load_dataset(data_dir, use_dask=False, columns=None):
     return cases_content
 
 
-# test = '. Aanvraag niet gedaan door een belanghebbende. daarom geen aanvraag in de zin van de Awb. Verweerder was ' \
-#        'daarom niet gehouden om een besluit te nemen. Niet voldaan aan de voorwaarden voor het instellen van beroep ' \
-#        'NT. '
-
-# print(test.strip()[1:].strip())
-# print(test)
-#
-# all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/interim')
-#
-# a = all_cases[all_cases['summary'].str.startswith('. ')]['summary']
-# print(a)
-# b = all_cases.iloc[[43508]]['summary']
-# print(b)
-#
-# print(all_cases.iloc[2903])
-#all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/interim', columns=['identifier', 'summary'])
-#print(all_cases)
-#print(f'Size of dataset as df: {round(sys.getsizeof(all_cases) / 1024 / 1024, 2)} mb')
-#print(all_cases['judgment_date'])
-
-# casee = all_cases.loc[all_cases['identifier'] == 'ECLI:NL:PHR:2006:AY7459', ].values
-#
-# print(f'Case summary: {casee[0][1]}\n\nCase Text: {casee[0][2]}')
+if __name__ == '__main__':
+    all_cases = load_dataset(DATA_DIR / 'raw')  # 'raw/bu_13-6_results_ds'
+    print(len(all_cases))

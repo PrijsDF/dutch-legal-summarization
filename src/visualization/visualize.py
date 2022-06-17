@@ -1,42 +1,8 @@
-import time
-import re
-from pprint import pprint
-import math
-
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from src.utils import DATA_DIR, REPORTS_DIR, load_dataset
-
-
-blue = '#1F77B4'  # Use solely for the full model
-red = '#ff0000'  # Use solely for the cluster combined model
-
-geel = '#ff00f0'
-marine = '#9400d3' #'#35193E'#141E8C'
-olive = '#ff4500' #'#AD1759' #'#808000'
-purple = '#ffa500' #'#F37651' #'#2A0800'
-grass = '#009900' #'#E13342' #'#28b463'
-pink = '#800000' #'#701F57'  #'#F6B48F' #'#b428a7'
-
-cluster_alpha = 0.7  # The opacity of cluster model lines; to make hte main model line better visible
-linestyle = 'dashed'  # The type of line for the validation curves in the val loss all models graph
-
-# Font sizes for graph texts
-small_size = 16
-medium_size = 20
-big_size = 16
-
-plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']}, size=small_size)  # controls default text sizes
-plt.rc('text', usetex=True)
-plt.figure(figsize=(14, 7))#, dpi=160)  #, dpi=300)
-plt.rc('axes', titlesize=small_size)     # fontsize of the axes title
-plt.rc('axes', labelsize=medium_size)    # fontsize of the x and y labels
-plt.rc('xtick', labelsize=small_size)    # fontsize of the tick labels
-plt.rc('ytick', labelsize=small_size)    # fontsize of the tick labels
-plt.rc('legend', fontsize=14)    # legend fontsize
-plt.rc('figure', titlesize=big_size)     # fontsize of the figure title
+# src.utils also loads layout parameters for pyplot
+from src.utils import REPORTS_DIR
 
 
 def main():
@@ -54,12 +20,12 @@ def main():
     #         print(cases_of_len)
 
     # We want to see what the correlation is between ds size and rouge scores
-    # plot_avg_rouge_ds_len(save_figure=False)
+    plot_avg_rouge_ds_len(save_figure=False)
 
-    # Inspect the summaries of a specific summary (similar to a function found in rechtspraak_view_dataset.py)
-    ecli = 'ECLI:NL:CRVB:2005:AU5952'
-    print_ecli_summaries(REPORTS_DIR / 'human_evaluation/evaluation_sample_evaluated.csv'
-                         , ecli=ecli)
+    # Inspect the generated summaries of a specific summary (similar to a function found in view_dataset.py)
+    # ecli = 'ECLI:NL:CRVB:2005:AU5952'
+    # print_ecli_summaries(REPORTS_DIR / 'human_evaluation/evaluation_sample_evaluated.csv'
+    #                      , ecli=ecli)
 
 
 def print_ecli_summaries(data_dir, ecli):
@@ -97,8 +63,6 @@ def plot_avg_rouge_ds_len(save_figure=False):
     plt.scatter(dataset_sizes, rouge_l_scores, label='ROUGE-L', zorder=100)
     plt.xlabel('Dataset size')
     plt.ylabel('ROUGE score')
-    x_max = max(dataset_sizes)
-    y_max = max(rouge_1_scores)
     plt.xlim(0, 110000)
     plt.ylim(0, 100)
 
@@ -110,7 +74,6 @@ def plot_avg_rouge_ds_len(save_figure=False):
         # For the full model, we want to print horizontal guide lines to show which of the cluster models outperform it
         if label == 'Full':
             # This colar map is the default one; it was also used to draw the scatter plots
-            cmap = plt.get_cmap("tab10")
             plt.axhline(y=rouge_1_scores[i], color='C0', linewidth=1.5, linestyle=':')
             plt.axhline(y=rouge_2_scores[i], color='C1', linewidth=1.5, linestyle=':')
             plt.axhline(y=rouge_l_scores[i], color='C2', linewidth=1.5, linestyle=':')
