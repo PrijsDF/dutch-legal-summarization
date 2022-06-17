@@ -54,7 +54,7 @@ def main(save_file_name='descriptive_features_full_1024'):
     dataset to existing benchmarks for summarization. These authors also published code containing computations of
     these features. I didn't follow their implementation."""
     # Load the interim dataset
-    all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/interim')
+    all_cases = load_dataset(DATA_DIR / 'interim')
 
     # Convert the pandas df to a list of dicts for more efficient processing
     cases_dict_list = all_cases.to_dict('records')

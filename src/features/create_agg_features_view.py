@@ -20,7 +20,7 @@ def main():
 
     Importantly, we will filter out all outliers and litter."""
     # Load the features csv; this csv was created in the compute_bommasani_features.py file
-    #features_df = pd.read_csv(DATA_DIR / 'open_data_uitspraken/features/descriptive_features_full_1024.csv')
+    #features_df = pd.read_csv(DATA_DIR / 'features/descriptive_features_full_1024.csv')
     features_df = pd.read_csv(REPORTS_DIR / 'descriptive_features_full_1024.csv')
     print(len(features_df))
     # Remove cases with a score of 999 in any of the features (besides the simple word and sentence counts)

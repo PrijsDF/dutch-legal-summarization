@@ -53,7 +53,7 @@ def main(save_file_name='clustering_features_full_1024'):
     derived from Bommasani and Cardie (2020) using the cases' texts. These features, later, will be used for clustering
     of cases. Some features were omitted because they either depend on the summary, or are too expensive to compute."""
     # Load the interim dataset
-    all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/interim')
+    all_cases = load_dataset(DATA_DIR / 'interim')
 
     # Convert the pandas df to a list of dicts for more efficient processing
     cases_dict_list = all_cases.to_dict('records')
@@ -103,7 +103,7 @@ def main(save_file_name='clustering_features_full_1024'):
     )
 
     # Save the features
-    df_from_dict.to_csv(DATA_DIR / f'open_data_uitspraken/features/{save_file_name}.csv', index=False)
+    df_from_dict.to_csv(DATA_DIR / f'features/{save_file_name}.csv', index=False)
 
 
 def remove_pipes(list_of_dicts):

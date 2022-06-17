@@ -8,8 +8,8 @@ import pandas as pd
 from tqdm import tqdm
 
 from src.utils import DATA_DIR, LOG_DIR
-from rechtspraak_parse_xml_functions import parse_xml
-from rechtspraak_compare_formats import compare_formats
+from parse_xml_functions import parse_xml
+from compare_formats import compare_formats
 
 
 def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=False, max_desc_length=None):

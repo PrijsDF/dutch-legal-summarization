@@ -20,13 +20,13 @@ def main():
     store the final obtained splits in the processed data dir folder.
     """
     # Load the interim dataset
-    all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/interim')
+    all_cases = load_dataset(DATA_DIR / 'interim')
 
     # Load the cluster file that contains a mapping of each ECLI to a cluster
     class_mapping = pd.read_csv(REPORTS_DIR / 'ecli_cluster_mapping.csv')
 
     # Get the data splits and save them in save_dir
-    save_dir = DATA_DIR / 'open_data_uitspraken/processed'
+    save_dir = DATA_DIR / 'processed'
     get_data_splits(class_mapping, all_cases, save_dir, save_full_ds=False, save_cluster_ds=False)
 
 
@@ -46,7 +46,7 @@ def get_data_splits(class_mapping, all_cases, save_dir, save_full_ds, save_clust
     file size of the cluster files is approx 95% of the size of the three main dataset splits. I guess this difference
     stems from the nature of parquet (with brotli compression?).
 
-    In the rechtspraak_view_dataset.py file a split can be inspected to check whether indeed only contains the cases
+    In the view_dataset.py file a split can be inspected to check whether indeed only contains the cases
     of the right class and the right number of cases. I sample-checked on both these properties and it looks fine.
     """
     # We have to split twice in a row; first to get the train split and second to get the val and test split
