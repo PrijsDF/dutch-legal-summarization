@@ -9,7 +9,8 @@ from sklearn import mixture
 
 
 def main():
-    """Code was largely taken from https://scikit-learn.org/stable/auto_examples/mixture/plot_gmm_selection.html"""
+    """Trivial file to test mixture models. Code was largely taken from
+    https://scikit-learn.org/stable/auto_examples/mixture/plot_gmm_selection.html"""
     # Learn two-feature mixture model
     # mix_of_two_feats()
 
@@ -79,33 +80,6 @@ def mix_of_three_feats():
     plt.text(xpos, bic.min() * 0.97 + 0.03 * bic.max(), "*", fontsize=14)
     spl.set_xlabel("Number of components")
     spl.legend([b[0] for b in bars], cv_types)
-
-    # This is not feasible for a three-feature dataset
-    # # Plot the winner
-    # splot = plt.subplot(2, 1, 2)
-    # Y_ = clf.predict(X)
-    # for i, (mean, cov, color) in enumerate(zip(clf.means_, clf.covariances_, color_iter)):
-    #     v, w = linalg.eigh(cov)
-    #     if not np.any(Y_ == i):
-    #         continue
-    #     plt.scatter(X[Y_ == i, 0], X[Y_ == i, 1], 0.8, color=color)
-    #
-    #     # Plot an ellipse to show the Gaussian component
-    #     angle = np.arctan2(w[0][1], w[0][0])
-    #     angle = 180.0 * angle / np.pi  # convert to degrees
-    #     v = 2.0 * np.sqrt(2.0) * np.sqrt(v)
-    #     ell = mpl.patches.Ellipse(mean, v[0], v[1], 180.0 + angle, color=color)
-    #     ell.set_clip_box(splot.bbox)
-    #     ell.set_alpha(0.5)
-    #     splot.add_artist(ell)
-    #
-    # plt.xticks(())
-    # plt.yticks(())
-    # plt.title(
-    #     f"Selected GMM: {best_gmm.covariance_type} model, "
-    #     f"{best_gmm.n_components} components"
-    # )
-    # plt.subplots_adjust(hspace=0.35, bottom=0.02)
     plt.show()
 
 
