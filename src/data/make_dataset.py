@@ -12,7 +12,7 @@ from rechtspraak_parse_xml_functions import parse_xml
 from rechtspraak_compare_formats import compare_formats
 
 
-def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=False, max_desc_length=1024):
+def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=False, max_desc_length=None):
     """ Runs data processing scripts to turn external data from (../external) into
         a raw dataset (saved in ../raw) that can be used as a starting point for creating the
         final dataset.
@@ -37,20 +37,20 @@ def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=Fal
     logging.info('Making raw dataset from external Rechtspraak data...')
 
     # We will store the intermediary files and final raw dataset here
-    cases_dir = DATA_DIR / 'open_data_uitspraken/raw'
+    cases_dir = DATA_DIR / 'raw'
 
     # Specify years; 1912 does not exist
     years = list(range(1911, 2023))
     years.remove(1912)
 
-    # When using a custom range, specify it here
+    # When using a custom range, specify it here and remove 1912 if it is in the range
     # years = list(range(2021, 2022))
     # years.remove(1912)
 
     # Get month archives of each year; we will loop over these
     all_month_archives = []
     for year in years:
-        year_path = DATA_DIR / f'open_data_uitspraken/external/{str(year)}'
+        year_path = DATA_DIR / f'external/{str(year)}'
         month_archives = sorted([x for x in year_path.iterdir() if x.is_file()])
         all_month_archives += month_archives
 
@@ -70,12 +70,11 @@ def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=Fal
 
         # Parse all cases in month archive
         cases_content_df = process_month_archive(year, month, month_archive, max_desc_length)
-        #print(len(cases_content_df))
 
         # Save the extracted archive's cases to a parquet
         cases_content_df.to_parquet(cases_dir / f'cases_content_{archive_name}.parquet')
 
-        # Uncomment if conducting comparison experiment for the different file formats
+        # Optionally do a comparison experiment for the different file formats
         if make_format_comparison:
             compare_formats(cases_content_df, int(year), int(month), cases_dir)
 
@@ -103,27 +102,24 @@ def process_month_archive(year, month, month_archive, max_desc_length):
     archive = ZipFile(month_archive, 'r')
     cases_archive = archive.namelist()
 
-    one_print_temp = False  # used for debugging
     for legal_case in cases_archive:
         # Read the content of the zip file (XML) into bf4 parser
         case_content = parse_xml(archive.read(legal_case))
 
         # Before appending we want to add the year and month of the case to case_content
-        case_content['year'] = year  # also include 'year' in the df declaration above + give it as param to this func
+        case_content['year'] = year
         case_content['month'] = month
 
-        if one_print_temp:
-            one_print_temp = False
-            print(case_content)
-
         # Append to df; but only if the desc length is not > max_desc_length (if this param was set)
-        if max_desc_length:
-            if len(case_content['description'].split()) <= max_desc_length:
-                cases_content_df = cases_content_df.append(case_content, ignore_index=True)
-            else:
-                pass  # In this case the description has more than 1024 tokens and violates the max_length of the model
-        else:  # max_desc_length == None
-            cases_content_df = cases_content_df.append(case_content, ignore_index=True)
+        # if max_desc_length:
+        #     if len(case_content['description'].split()) <= max_desc_length:
+        #         cases_content_df = cases_content_df.append(case_content, ignore_index=True)
+        #     else:
+        #         pass  # In this case the description has more than 1024 tokens and violates the max_length of the model
+        # else:  # max_desc_length == None
+        #     cases_content_df = cases_content_df.append(case_content, ignore_index=True)
+
+        cases_content_df = cases_content_df.append(case_content, ignore_index=True)
 
     return cases_content_df
 

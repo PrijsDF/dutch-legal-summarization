@@ -1,5 +1,3 @@
-import time
-
 import pandas as pd
 
 from src.utils import DATA_DIR, REPORTS_DIR, load_dataset
@@ -13,8 +11,8 @@ pd.options.display.width = None
 def main():
     """View Open Rechtspraak dataset with pandas."""
     # Load the raw dataset
-    #all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/interim')
-    # all_cases = pd.read_parquet(DATA_DIR / 'open_data_uitspraken/processed/test_rechtspraak.parquet')
+    # all_cases = load_dataset(DATA_DIR / 'interim')
+    # all_cases = pd.read_parquet(DATA_DIR / 'processed/test_rechtspraak.parquet')
     # print(len(all_cases))
 
     # Get a sample of the dataset and save the sample as csv
@@ -35,7 +33,7 @@ def main():
     # View a cluster dataset split (e.g. check whether this is correct
     # {0: 23584, 5: 21875, 2: 19156, 4: 15413, 1: 13504, 3: 6669})
     # cluster_file = '3_test_rechtspraak'
-    # cluster_file_path = DATA_DIR / f'open_data_uitspraken/processed/cluster_subsets/{cluster_file}.parquet'
+    # cluster_file_path = DATA_DIR / f'processed/cluster_subsets/{cluster_file}.parquet'
     # df = pd.read_parquet(cluster_file_path)
     # print(df)
 
@@ -79,14 +77,6 @@ def create_subset_from_ecli(df, eclis, only_complete_items=False, save_sample=Fa
         ecli_df.to_csv(save_dir / 'ecli_subset.csv', mode='w', index=False, header=True)
 
     return ecli_df
-
-
-def view_cluster_split(df):
-    """This function can be used to load a specific cluster dataset split. It may be useful to sanity-check whether
-    the number of cases in each of the cluster_splits corresponds to the following distribution (which was learned and
-    used by k-means):
-    {0: 23584, 5: 21875, 2: 19156, 4: 15413, 1: 13504, 3: 6669}
-     """
 
 
 if __name__ == '__main__':

@@ -5,10 +5,6 @@ from datetime import datetime
 def parse_xml(file_name):
     """ Using bs4, the case document is parsed. Three parts are extracted: the rdf; containing mostly meta-information,
     the case summary, and the case description. Returns a dictionary of all relevant pieces of information of the case.
-
-    Edit @20-04-22: with get_text(), when getting the summary and description, a seperator can be provided for each of
-    the text segments that will be extracted. Before, this I used a '|' character; but I might as well just give it a
-    whitespace, which I just did.
     """
     # Passing the stored data inside the beautifulsoup parser
     file_xml = BeautifulSoup(file_name, 'xml')
@@ -58,8 +54,8 @@ def get_document_attributes(case_rdf):
     rdf_tags = {}
 
     # Tag pointer dictionary for single tag items
-    # Cardinalities are taken from chapter 12 of the pdf:
-    # ./references/Rechtspraak data information/Technische-documentatie-Open-Data-van-de-Rechtspraak.pdf
+    # Cardinalities are taken from chapter 12 of the pdf 'Technische documentatie Open Data van de Rechtspraak'
+    # found at: https://www.rechtspraak.nl/Uitspraken/paginas/open-data.aspx
     # Cardinality: 0/1 - 1
     tag_pointer_dict = {
         'identifier': 'dcterms:identifier',  # 1 - 1

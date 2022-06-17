@@ -1,35 +1,22 @@
-import time
-
 import pandas as pd
 from tqdm import tqdm
 
-from src.utils import DATA_DIR, REPORTS_DIR, load_dataset
-
-# Some pandas options that allow to view all collumns and rows at once
-pd.set_option('display.max_columns', 500)
-pd.set_option('max_colwidth', 400)
-pd.options.display.width = None
+from src.utils import DATA_DIR, load_dataset
 
 
 def main():
     """View Open Rechtspraak dataset with pandas."""
     # Load the raw dataset
-    all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/raw'
+    all_cases = load_dataset(DATA_DIR / 'raw'
                              , columns=['identifier', 'missing_parts', 'description', 'summary'])
 
     # Create interim dataset (only containing completete, viable cases)
-    create_interim_dataset(all_cases, save_dir=DATA_DIR / 'open_data_uitspraken/interim')
+    create_interim_dataset(all_cases, save_dir=DATA_DIR / 'interim')
 
 
 def create_interim_dataset(df, save_dir, chunks=10):
     """In the interim dataset, only those cases are included that contain both a case description and a summary, and
     the summary has to contain at least 10 words. Note; we use 6 chunks, 4 gives a SIGKILL error with exit code 137."""
-    # First we remove the pipes from the dataset
-    # This code was first included in creat_lda_model.py, compute_clustering_features.py and in
-    # compute_bommasani_features.py; it might be better however to include it here to yield a clean dataset a-priori
-    # By parsing df to a list of dicts first, we speed up this process of removing pipes significantly
-    # df = remove_pipes(df)
-
     # TODO: here, also the desc length must be specified; it should be more than 5 words or so
     # TODO: Make sure to remove leading-dots (.) from summaries; these are sometimes included (in three cases) and cause
     # errors when computing rouge scores
@@ -64,21 +51,8 @@ def create_interim_dataset(df, save_dir, chunks=10):
             chunk_cases = df[chunk*cases_per_chunk:(chunk+1)*cases_per_chunk]
 
         chunk_cases.to_parquet(save_dir / f'viable_cases_chunk_{chunk+1}.parquet', compression='brotli')
-        #print(f'Saved Chunk {chunk+1}.')
 
     print(f'Saved all cases.')
-
-
-def remove_pipes(df):
-    """The prior-added pipes (|) will be filtered out."""
-    df_dict_list = df.to_dict('records')
-
-    for i in tqdm(range(len(df_dict_list)), desc="Removing pipes (|)"):
-        df_dict_list[i]['description'] = df_dict_list[i]['description'].replace("|", " ")
-        df_dict_list[i]['summary'] = df_dict_list[i]['summary'].replace("|", " ")
-
-    df = pd.DataFrame.from_records(df_dict_list)
-    return df
 
 
 if __name__ == '__main__':
