@@ -33,7 +33,7 @@ nlp.max_length = 1500000  # Otherwise the limit will be 1000000 which is too lit
 def main():
     """View Open Rechtspraak dataset with pandas."""
     # Load the raw dataset
-    all_cases = load_dataset(DATA_DIR / 'open_data_uitspraken/interim', use_dask=True)
+    all_cases = load_dataset(DATA_DIR / 'interim', use_dask=True)
     # print(f'Number of cases in interim dataset {len(all_cases)}')
     # print(all_cases)
 

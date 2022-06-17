@@ -16,7 +16,7 @@ def main():
     computing the weighted loss of each of the cluster model training epochs in order to create an aggregate loss value
     for the complete clustering framework from the individual models (see ft_create_plot_full_models in
     plot_training_graphs.py"""
-    dataset_folder = DATA_DIR / 'open_data_uitspraken/processed'
+    dataset_folder = DATA_DIR / 'processed'
 
     datasets = ['full', '0', '1', '2', '3', '4', '5']
 

@@ -19,7 +19,7 @@ def main():
     """In this file, rouge scores will be computed for the generated summaries. We load in a file containing generated
     summaries for either the full dataset or one of the clusters. """
     # Now, we also need the dataset to fetch the corresponding real summary; we can use the test split with all cases
-    all_cases = pd.read_parquet(DATA_DIR / 'open_data_uitspraken/processed/test_rechtspraak.parquet')
+    all_cases = pd.read_parquet(DATA_DIR / 'processed/test_rechtspraak.parquet')
 
     #print(all_cases.columns)
     # First we compute the scores for each of the models

@@ -1,20 +1,15 @@
-import time
-import re
-from pprint import pprint
 import pickle
 
-import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
-from src.utils import DATA_DIR, REPORTS_DIR, MODELS_DIR, load_dataset
+from src.utils import DATA_DIR, REPORTS_DIR, MODELS_DIR
 
 
-def main(graphs_dir=REPORTS_DIR / 'training_graphs'):
+def main():
     """Verify the k-means class mapping to see whether a case really gets assigned the class that is found in the class
     mapping."""
     # Load the clustering features
-    clustering_features = pd.read_csv(DATA_DIR / 'open_data_uitspraken/features/clustering_features_full_1024.csv')
+    clustering_features = pd.read_csv(DATA_DIR / 'features/clustering_features_full_1024.csv')
 
     # Load the cluster file that contains a mapping of each ECLI to a cluster
     class_mapping = pd.read_csv(REPORTS_DIR / 'ecli_cluster_mapping.csv')
