@@ -12,7 +12,7 @@ from parse_xml_functions import parse_xml
 from compare_formats import compare_formats
 
 
-def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=False, max_desc_length=None):
+def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=False):
     """ Runs data processing scripts to turn external data from (../external) into
         a raw dataset (saved in ../raw) that can be used as a starting point for creating the
         final dataset.
@@ -24,13 +24,6 @@ def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=Fal
         In order to parse xml (in our way) with bs4, we need to install the library lxml. Also, for storage purposes
         we are using parquet; here, too, we need an external library to falicitate this functionality for Pandas. We
         chose to use pyarrow, albeit that fastparquet also would be a viable option.
-
-        Edit @20-04-22: I chose to only include cases with less than 1024 tokens in total. I hoped that I could filter
-        out all these cases from the raw dataset when creating the interim dataset; this lead to memory errors however.
-        Thats why I included this rule here as a main() parameter. Technically, however, the BART tokenizer should
-        be used to achieve this rule. This is because in the model a token is not equal to a word, but equal to a word
-        part. 1024 word tokens might very well mean 2000 tokens for the model during training. Make max_desc_length None
-        if no max_length is needed to be enforced.
     """
     # Start logging
     print('Making raw dataset from external Rechtspraak data...')
@@ -69,7 +62,7 @@ def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=Fal
         pbar.set_description(f'Processing month {month} of {year}')
 
         # Parse all cases in month archive
-        cases_content_df = process_month_archive(year, month, month_archive, max_desc_length)
+        cases_content_df = process_month_archive(year, month, month_archive)
 
         # Save the extracted archive's cases to a parquet
         cases_content_df.to_parquet(cases_dir / f'cases_content_{archive_name}.parquet')
@@ -88,7 +81,7 @@ def main(make_final_dataset=True, number_of_chunks=4, make_format_comparison=Fal
         create_final_dataset(cases_dir, number_of_chunks)
 
 
-def process_month_archive(year, month, month_archive, max_desc_length):
+def process_month_archive(year, month, month_archive):
     """ Processes each XML file (i.e. legal case) in the month archive, returning a df with the content of these cases.
     """
     # Store all cases of current archive in these dfs
@@ -109,15 +102,6 @@ def process_month_archive(year, month, month_archive, max_desc_length):
         # Before appending we want to add the year and month of the case to case_content
         case_content['year'] = year
         case_content['month'] = month
-
-        # Append to df; but only if the desc length is not > max_desc_length (if this param was set)
-        # if max_desc_length:
-        #     if len(case_content['description'].split()) <= max_desc_length:
-        #         cases_content_df = cases_content_df.append(case_content, ignore_index=True)
-        #     else:
-        #         pass  # In this case the description has more than 1024 tokens and violates the max_length of the model
-        # else:  # max_desc_length == None
-        #     cases_content_df = cases_content_df.append(case_content, ignore_index=True)
 
         cases_content_df = cases_content_df.append(case_content, ignore_index=True)
 
