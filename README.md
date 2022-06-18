@@ -106,15 +106,15 @@ Finally, run the file. The fine-tuned model will be stored in ```/this_repo/mode
 Of course, the most interesting part of this process of training a summarization model is to use it on the test set(s) and see whether it really works. To do this, you first have to edit line 42 in ```/this_repo/src/models/ft_bart_inf.py``` and replace the model path(s) with your fine-tuned model path(s):
 ```python
 # Change these to your own model paths
-    model_mapping = {
-        'full': 'sum_full_bart_nl_09-05_21-47-58/best_model',
-        '0': 'sum_0_bart_nl_10-05_09-26-02/best_model',
-        '1': 'sum_1_bart_nl_10-05_12-23-11/best_model',
-        '2': 'sum_2_bart_nl_10-05_16-45-27/best_model',
-        '3': 'sum_3_bart_nl_09-05_20-52-08/best_model',
-        '4': 'sum_4_bart_nl_10-05_19-26-19/best_model',
-        '5': 'sum_5_bart_nl_10-05_14-06-55/best_model',
-    }
+model_mapping = {
+    'full': 'sum_full_bart_nl_09-05_21-47-58/best_model',
+    '0': 'sum_0_bart_nl_10-05_09-26-02/best_model',
+    '1': 'sum_1_bart_nl_10-05_12-23-11/best_model',
+    '2': 'sum_2_bart_nl_10-05_16-45-27/best_model',
+    '3': 'sum_3_bart_nl_09-05_20-52-08/best_model',
+    '4': 'sum_4_bart_nl_10-05_19-26-19/best_model',
+    '5': 'sum_5_bart_nl_10-05_14-06-55/best_model',
+}
 ```
 
 Now, you can run ```/this_repo/src/models/ft_bart_inf.py``` while specifying what test set you want to predict/summarize for; the script will automatically fetch the corresponding model. E.g. if you want to predict for the full model's test set, use:   
@@ -126,4 +126,4 @@ The results will be stored in ```/this_repo/reports/inf_results/model_{dataset_n
 ## Notes 
 - Scattered over the repository, you might find other scripts. Most of these are used to evaluate the generated summaries and create graphs of the results.
 - Running plotting scripts might result in errors as tex is used to render texts; you can edit this in ```/this_repo/utils.py``` if necessary
-- In the thesis' experiment, for training of the BART models a TPU was used (for [free](https://sites.research.google/trc/about/), thanks Google!). This was not only necessary to speed up training, but it also enabled me to load the BART model in the first place; the GPU-server, that I also had access too, unfortunately could not work with the large model.
+- In the thesis' experiment, for training of the BART models a TPU was used (for [free](https://sites.research.google/trc/about/), thanks Google!). This was not only necessary to speed up training, but it also enabled me to load the BART model in the first place; the GPU-server, that we also had access too, unfortunately could not work with the large model.
